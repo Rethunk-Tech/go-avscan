@@ -299,3 +299,25 @@ func TestSecurityCenterProductsNamesOrErrors(t *testing.T) {
 		t.Fatal("no error and no names")
 	}
 }
+
+// A write that fails because clamd closed early is explained by whatever clamd said before closing; with nothing said,
+// the write error stands.
+func TestReplyOnWriteError(t *testing.T) {
+	t.Parallel()
+	writeErr := errors.New("broken pipe")
+	for name, c := range map[string]struct{ reply, wantName string }{
+		"clamd named a threat": {"stream: Eicar-Test-Signature FOUND\x00", "Eicar-Test-Signature"},
+		"clamd said nothing":   {"", ""},
+	} {
+		client, server := net.Pipe()
+		go func() {
+			_, _ = server.Write([]byte(c.reply))
+			_ = server.Close()
+		}()
+		name2, err := replyOnWriteError(client, writeErr)
+		_ = client.Close()
+		if name2 != c.wantName || (c.wantName == "" && !errors.Is(err, writeErr)) || (c.wantName != "" && err != nil) {
+			t.Errorf("%s: %q, %v", name, name2, err)
+		}
+	}
+}
