@@ -6,6 +6,8 @@ Notable changes to `go-avscan`. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-29
+
 ### Added
 
 - `Scanner`, `Detection`, `ErrNoScanner`: the interface every scanner implements and the result it returns. Every scan walks the folder through one `os.Root`, so a symlink cannot lead it outside.
@@ -13,4 +15,5 @@ Notable changes to `go-avscan`. The format follows
 - `Command`: scans a folder with a program the caller names, no shell, and `Program` for its name.
 - `AMSI`: scans a folder through the Windows AMSI provider; `SecurityCenterProducts` lists the antivirus products Windows Security Center registers.
 
-[Unreleased]: https://github.com/Rethunk-Tech/go-avscan/commits/main
+[Unreleased]: https://github.com/Rethunk-Tech/go-avscan/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Rethunk-Tech/go-avscan/releases/tag/v0.1.0
