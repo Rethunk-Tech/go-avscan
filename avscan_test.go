@@ -3,6 +3,7 @@ package avscan
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -34,15 +35,39 @@ func writeTree(t *testing.T, files map[string]string) string {
 	return dir
 }
 
-// fakeClamd listens on a unix socket and answers like clamd: INSTREAM chunks are read and the reply is FOUND when the
-// stream holds the EICAR string, or an ERROR once more than limit bytes arrive.
+// fakeClamd answers like clamd: INSTREAM chunks are read and the reply is FOUND when the stream holds the EICAR
+// string, or an ERROR once more than limit bytes arrive. It listens on a unix socket, or on loopback TCP through Dial
+// where unix sockets are missing, so the clamd tests never pass by skipping.
 func fakeClamd(t *testing.T, limit int) Clamd {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "clamd.sock")
+	c := Clamd{Socket: path}
 	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", path)
 	if err != nil {
-		t.Skipf("no unix sockets: %v", err)
+		ln = listenTCP(t)
+		c = Clamd{Dial: dialTo(ln.Addr())}
 	}
+	serveOn(t, ln, limit)
+	return c
+}
+
+func listenTCP(t *testing.T) net.Listener {
+	t.Helper()
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ln
+}
+
+func dialTo(addr net.Addr) func(context.Context) (net.Conn, error) {
+	return func(ctx context.Context) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, addr.Network(), addr.String())
+	}
+}
+
+func serveOn(t *testing.T, ln net.Listener, limit int) {
+	t.Helper()
 	t.Cleanup(func() { _ = ln.Close() })
 	go func() {
 		for {
@@ -53,7 +78,6 @@ func fakeClamd(t *testing.T, limit int) Clamd {
 			go serveClamd(conn, limit)
 		}
 	}()
-	return Clamd{Socket: path}
 }
 
 func serveClamd(conn net.Conn, limit int) {
@@ -148,13 +172,25 @@ func TestClamdWithoutADaemonIsNoScanner(t *testing.T) {
 
 func TestClamdDialReachesADaemonOverAnyTransport(t *testing.T) {
 	t.Parallel()
-	sock := fakeClamd(t, 0).Socket
-	c := Clamd{Dial: func(ctx context.Context) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, "unix", sock)
-	}}
+	ln := listenTCP(t)
+	serveOn(t, ln, 0)
+	c := Clamd{Dial: dialTo(ln.Addr())}
 	got, err := c.Version(t.Context())
 	if err != nil || got != "ClamAV 1.0.1/27000/Mon" {
 		t.Fatalf("version = %q, %v", got, err)
+	}
+	dir := writeTree(t, map[string]string{"bad.dll": eicar()})
+	if d, found, err := c.Scan(t.Context(), dir); !found || err != nil || d.File != "bad.dll" {
+		t.Fatalf("scan over TCP = %+v, %v, %v", d, found, err)
+	}
+}
+
+// Callers persist Detection, so its JSON keys are part of the contract.
+func TestDetectionJSONKeys(t *testing.T) {
+	t.Parallel()
+	b, err := json.Marshal(Detection{Name: "n", File: "f", Scanner: "s"})
+	if err != nil || string(b) != `{"name":"n","file":"f","scanner":"s"}` {
+		t.Fatalf("json = %s, %v", b, err)
 	}
 }
 
