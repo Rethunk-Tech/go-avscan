@@ -78,7 +78,7 @@ func (c Command) Scan(ctx context.Context, dir string) (Detection, bool, error) 
 		return Detection{}, false, ctx.Err()
 	}
 	if _, exited := errors.AsType[*exec.ExitError](err); exited {
-		return Detection{Name: firstLine(string(out)), Scanner: c.Program()}, true, nil
+		return Detection{Name: firstLine(string(out)), Scanner: filepath.Base(parts[0])}, true, nil
 	}
 	return Detection{}, false, fmt.Errorf("run %s: %w", parts[0], err)
 }
