@@ -23,7 +23,7 @@ A worked example and the contracts: [HUMANS.md](HUMANS.md).
 
 ## Features
 
-- One `Scanner` interface over three backends: Windows AMSI, a clamd daemon, and a command you name.
+- One `Scanner` interface for every backend.
 - Files are opened through the scanned folder's root, so a symlink cannot lead a scan outside it.
 - A file clamd refuses for size is a failed scan (`ErrTooLarge`), never a clean one.
 - Every network and process wait ends with the caller's context.
