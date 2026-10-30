@@ -34,9 +34,7 @@ func check(ctx context.Context, s avscan.Scanner, dir string) error {
 }
 
 func main() {
-	var s avscan.Scanner = avscan.Clamd{}
-	_ = check
-	fmt.Printf("%T\n", s)
+	_ = check // e.g. check(ctx, avscan.Clamd{}, dir) or check(ctx, avscan.AMSI{AppName: "myapp"}, dir)
 	fmt.Println(avscan.Command{Line: `clamdscan --no-summary "{path}"`}.Program())
 }
 ```

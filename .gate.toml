@@ -20,8 +20,6 @@ run = "./scripts/actionlint"
 [gates.fmt]
 run = "go tool golangci-lint fmt --diff ./..."
 
-# Compiles the module and its tests for Windows, where a build-tagged file can
-# break without any Linux check noticing.
 # Vets the module and its tests for every OS it builds a file for; add a GOOS here when a
 # file gains a build tag for it.
 [gates.crosscompile]

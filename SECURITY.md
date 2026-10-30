@@ -14,7 +14,7 @@ Please do not open a public issue for a suspected vulnerability first.
 
 ## What is in scope
 
-- A scanned folder's contents, which may be hostile: a symlink or crafted path must not lead `Clamd.Scan`, `AMSI.Scan` or `Command` to read a file outside the folder (the walk and every open go through one `os.Root`).
+- A scanned folder's contents, which may be hostile: a symlink or crafted path must not lead `Clamd.Scan` or `AMSI.Scan` to read a file outside the folder (the walk and every open go through one `os.Root`). `Command` hands the folder to the caller's program, which reads it by its own rules.
 - A clamd reply: `parseReply` reads at most 4 KiB and must not panic or report a file clean on an unrecognised answer; it is an error.
 - A file of any size: it is streamed in fixed chunks, never loaded whole by clamd scans, and a file over clamd's limit must be a failed scan, not a clean one.
 - A default-list clamd socket: another local user must not be able to stand in for the daemon, so such a socket counts only when owned by root or `clamav`.

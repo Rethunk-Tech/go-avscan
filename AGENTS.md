@@ -12,7 +12,7 @@ No test here proves an AMSI detection on CI: a hosted Windows runner has Defende
 ## Shape
 
 - `files` is the only walk. It opens the folder once as an `os.Root` and hands each scanner the root plus a slash path, so no component under the folder can escape it. A scanner never joins paths itself.
-- Types stay exported as `Clamd`, `Command` and `AMSI` structs; there is no constructor, mode string or settings mapping, because choosing a scanner is the caller's policy.
+- The scanners are the exported structs `Clamd`, `Command` and `AMSI`; there is no constructor, mode string or settings mapping, because choosing a scanner is the caller's policy.
 - `defaultSockets` stays unexported: tests replace it, and a caller who wants another socket sets `Socket` or `Dial`.
 - A default-list socket must be owned by root or `clamav`, since the list includes world-writable `/tmp` and another user could answer "OK" to everything. A configured `Socket` is trusted as given, and `Dial` bypasses the list.
 - A clamd write error first reads the reply (`replyOnWriteError`): clamd closes the stream when a file exceeds its limit, and that reply, not the broken pipe, is the answer.
