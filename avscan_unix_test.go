@@ -3,7 +3,6 @@
 package avscan
 
 import (
-	"context"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,7 +15,7 @@ func TestClamdSkipsDefaultSocketOwnedByAnotherUser(t *testing.T) {
 		t.Skip("root owns the socket")
 	}
 	path := filepath.Join(t.TempDir(), "clamd.sock")
-	l, err := (&net.ListenConfig{}).Listen(context.Background(), "unix", path)
+	l, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", path)
 	if err != nil {
 		t.Fatal(err)
 	}

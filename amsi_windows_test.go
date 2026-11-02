@@ -3,7 +3,6 @@
 package avscan
 
 import (
-	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -25,7 +24,7 @@ func TestAMSIFlagsTheMicrosoftTestSample(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "clean.txt"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if hit, found, err := (AMSI{AppName: "go-avscan-test"}).Scan(context.Background(), dir); err != nil || found {
+	if hit, found, err := (AMSI{AppName: "go-avscan-test"}).Scan(t.Context(), dir); err != nil || found {
 		if errors.Is(err, ErrNoScanner) {
 			t.Skip("no AMSI provider on this machine")
 		}
@@ -34,7 +33,7 @@ func TestAMSIFlagsTheMicrosoftTestSample(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "sample.txt"), []byte(amsiSample()), 0o600); err != nil {
 		t.Skipf("the antivirus removed the test file as it was written: %v", err)
 	}
-	hit, found, err := (AMSI{}).Scan(context.Background(), dir)
+	hit, found, err := (AMSI{}).Scan(t.Context(), dir)
 	if errors.Is(err, os.ErrNotExist) {
 		t.Skip("the antivirus removed the test file before AMSI saw it")
 	}
