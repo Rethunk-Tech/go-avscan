@@ -6,6 +6,10 @@ Notable changes to `go-avscan`. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Clamd.ScanReader`: scans one stream, for a server screening an upload without writing it to a folder first.
+
 ## [0.1.0] - 2026-10-29
 
 ### Added

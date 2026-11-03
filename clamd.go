@@ -108,6 +108,29 @@ func (c Clamd) Scan(ctx context.Context, dir string) (Detection, bool, error) {
 // scanFile returns the threat clamd names for the file, or "" when it is clean; ErrTooLarge when the file is over
 // clamd's stream limit.
 func (c Clamd) scanFile(ctx context.Context, root *os.Root, rel string) (string, error) {
+	in, err := root.Open(rel)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = in.Close() }()
+	return c.scanStream(ctx, in)
+}
+
+// ScanReader streams r to clamd and reports a detection, with name as [Detection.File]. r may be left partly read: on
+// [ErrTooLarge] clamd stopped taking it at its limit, so a caller that keeps the bytes needs an [io.Seeker] to rewind.
+// With no reachable daemon the error is [ErrNoScanner].
+func (c Clamd) ScanReader(ctx context.Context, name string, r io.Reader) (Detection, bool, error) {
+	threat, err := c.scanStream(ctx, r)
+	if err != nil {
+		return Detection{}, false, err
+	}
+	if threat == "" {
+		return Detection{}, false, nil
+	}
+	return Detection{Name: threat, File: name, Scanner: "clamd"}, true, nil
+}
+
+func (c Clamd) scanStream(ctx context.Context, in io.Reader) (string, error) {
 	conn, err := c.connect(ctx)
 	if err != nil {
 		return "", err
@@ -115,11 +138,6 @@ func (c Clamd) scanFile(ctx context.Context, root *os.Root, rel string) (string,
 	defer func() { _ = conn.Close() }()
 	stop := bound(ctx, conn)
 	defer stop()
-	in, err := root.Open(rel)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = in.Close() }()
 	if _, err := conn.Write([]byte("zINSTREAM\x00")); err != nil {
 		return "", err
 	}
