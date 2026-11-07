@@ -6,6 +6,14 @@ Notable changes to `go-avscan`. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A default-list clamd socket that cannot be stat'ed is no longer trusted, and on Linux the connection's peer uid must be root or `clamav`, so a socket another user binds in `/tmp` cannot answer "OK".
+- AMSI results `0x4000`-`0x4FFF` (blocked by administrator policy) are detections instead of clean; AMSI chunks overlap by 1 MiB and a small file allocates only its own size.
+- A file swapped for a FIFO after the walk is skipped instead of blocking the scan.
+- `Command` keeps at most 64 KiB of output, and threat names are stripped of control characters and cut to 256 bytes.
+- A cancelled context during `Clamd.Dial` returns the context's error, not `ErrNoScanner`.
+
 ## [0.2.0] - 2026-11-03
 
 ### Added

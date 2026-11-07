@@ -50,7 +50,7 @@ func main() {
 | `ErrNoScanner` | No AMSI provider, no reachable clamd, an empty command line, or AMSI off Windows. Test with `errors.Is` |
 | `ErrTooLarge` | clamd refused a file over its size limit; wrapped with the file's path. A later detection in the same folder still wins; with none, this is the error |
 | `Clamd.Socket` | Trusted as given. `""` tries the distribution's default sockets, skipping any not owned by root or the `clamav` user on Unix |
-| `Clamd.Dial` | Replaces `Socket` and the default list; the caller owns trusting what it dials. A dial error is `ErrNoScanner` |
+| `Clamd.Dial` | Replaces `Socket` and the default list; the caller owns trusting what it dials. A dial error is `ErrNoScanner`, except a cancelled context, which returns the context's error |
 | `Clamd.ScanReader` | Streams one reader; `name` becomes `Detection.File`. `ErrTooLarge` and `ErrNoScanner` as for `Scan`, and the reader may be left partly read |
 | `Clamd.Version` | The daemon's version line; `ErrNoScanner` when none answers |
 | `Command` | No shell. Double quotes keep a part whole; `{path}` in any part becomes `dir`. Exit 0 is clean, any other exit code is a detection named by the first non-empty output line. A program that does not start is an error |

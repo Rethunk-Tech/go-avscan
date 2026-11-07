@@ -23,15 +23,17 @@ var (
 	amsiScanBuffer   = amsiDLL.NewProc("AmsiScanBuffer")
 )
 
-// amsiDetected is AMSI_RESULT_DETECTED: results at or above it are malware (AmsiResultIsMalware).
-const amsiDetected = 32768
-
 // amsiNotReady is HRESULT_FROM_WIN32(ERROR_NOT_READY), which AmsiScanBuffer returns when no antivirus is registered
 // as the AMSI provider.
 const amsiNotReady = 0x80070015
 
-// amsiChunk is how much of a file one AmsiScanBuffer call sees.
-const amsiChunk = 32 << 20
+const (
+	// amsiChunk is how much new file data one AmsiScanBuffer call sees.
+	amsiChunk = 32 << 20
+	// amsiOverlap is how much of the previous chunk's end the next call sees again, so a pattern that straddles the
+	// boundary is not split between two buffers.
+	amsiOverlap = 1 << 20
+)
 
 func amsiPtr[T any](v *T) uintptr {
 	return uintptr(unsafe.Pointer(v)) //nolint:gosec // G103: AMSI takes pointers to Go values
@@ -91,9 +93,12 @@ func (a AMSI) Scan(ctx context.Context, dir string) (Detection, bool, error) {
 }
 
 func scanFileAMSI(ctx context.Context, actx, session uintptr, root *os.Root, rel string) (bool, error) {
-	in, err := root.Open(rel)
+	in, err := openRegular(root, rel)
 	if errors.Is(err, windows.ERROR_VIRUS_INFECTED) || errors.Is(err, windows.ERROR_VIRUS_DELETED) {
 		return true, nil
+	}
+	if errors.Is(err, errNotRegular) {
+		return false, nil
 	}
 	if err != nil {
 		return false, err
@@ -103,15 +108,19 @@ func scanFileAMSI(ctx context.Context, actx, session uintptr, root *os.Root, rel
 	if err != nil {
 		return false, err
 	}
-	buf := make([]byte, amsiChunk)
+	size := int64(0)
+	if fi, err := in.Stat(); err == nil {
+		size = fi.Size()
+	}
+	view := newAMSIView(in, size, amsiChunk, amsiOverlap)
 	for {
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
-		n, readErr := io.ReadFull(in, buf)
-		if n > 0 {
+		buf, err := view.next()
+		if len(buf) > 0 {
 			var result uint32
-			hr, _, _ := amsiScanBuffer.Call(actx, amsiPtr(&buf[0]), uintptr(n),
+			hr, _, _ := amsiScanBuffer.Call(actx, amsiPtr(&buf[0]), uintptr(len(buf)),
 				amsiPtr(name), session, amsiPtr(&result))
 			if hr&0xFFFFFFFF == amsiNotReady {
 				return false, fmt.Errorf("%w: AmsiScanBuffer: no provider answered", ErrNoScanner)
@@ -119,15 +128,15 @@ func scanFileAMSI(ctx context.Context, actx, session uintptr, root *os.Root, rel
 			if hr != 0 {
 				return false, fmt.Errorf("AmsiScanBuffer: HRESULT 0x%x", hr)
 			}
-			if result >= amsiDetected {
+			if amsiFlagged(result) {
 				return true, nil
 			}
 		}
-		if readErr != nil {
-			if errors.Is(readErr, io.EOF) || errors.Is(readErr, io.ErrUnexpectedEOF) {
+		if err != nil {
+			if errors.Is(err, io.EOF) {
 				return false, nil
 			}
-			return false, readErr
+			return false, err
 		}
 	}
 }

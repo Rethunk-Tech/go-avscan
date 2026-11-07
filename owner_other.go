@@ -2,4 +2,4 @@
 
 package avscan
 
-func trustedSocketOwner(string) bool { return true }
+func trustedSocketOwner(string) bool { return false }

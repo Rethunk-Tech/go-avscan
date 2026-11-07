@@ -14,7 +14,7 @@ No test here proves an AMSI detection on CI: a hosted Windows runner has Defende
 - `files` is the only walk. It opens the folder once as an `os.Root` and hands each scanner the root plus a slash path, so no component under the folder can escape it. A scanner never joins paths itself.
 - The scanners are the exported structs `Clamd`, `Command` and `AMSI`; there is no constructor, mode string or settings mapping, because choosing a scanner is the caller's policy.
 - `defaultSockets` stays unexported: tests replace it, and a caller who wants another socket sets `Socket` or `Dial`.
-- A default-list socket must be owned by root or `clamav`, since the list includes world-writable `/tmp` and another user could answer "OK" to everything. A configured `Socket` is trusted as given, and `Dial` bypasses the list.
+- A default-list socket must be owned by root or `clamav`, since the list includes world-writable `/tmp` and another user could answer "OK" to everything. A configured `Socket` is trusted as given, and `Dial` bypasses the list. On Linux the dialled connection's peer uid is checked too (`peer_linux.go`).
 - A clamd write error first reads the reply (`replyOnWriteError`): clamd closes the stream when a file exceeds its limit, and that reply, not the broken pipe, is the answer.
 - `bound` gives each connection a fixed timeout or the caller's sooner deadline, and cancels a blocked read or write on context cancellation; without it a silent daemon holds the caller.
 - `Command` sets `WaitDelay` because a killed scanner can leave a child holding its output open.

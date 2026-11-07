@@ -70,7 +70,9 @@ func (c Command) Scan(ctx context.Context, dir string) (Detection, bool, error) 
 	nowindow.Set(cmd)
 	// A scanner can leave a child holding stdout open after it is killed; WaitDelay ends the wait for it.
 	cmd.WaitDelay = commandWaitDelay
-	out, err := cmd.Output()
+	var out cappedBuffer
+	cmd.Stdout = &out
+	err := cmd.Run()
 	if err == nil {
 		return Detection{}, false, nil
 	}
@@ -78,7 +80,7 @@ func (c Command) Scan(ctx context.Context, dir string) (Detection, bool, error) 
 		return Detection{}, false, ctx.Err()
 	}
 	if _, exited := errors.AsType[*exec.ExitError](err); exited {
-		return Detection{Name: firstLine(string(out)), Scanner: filepath.Base(parts[0])}, true, nil
+		return Detection{Name: firstLine(out.String()), Scanner: filepath.Base(parts[0])}, true, nil
 	}
 	return Detection{}, false, fmt.Errorf("run %s: %w", parts[0], err)
 }
@@ -86,8 +88,25 @@ func (c Command) Scan(ctx context.Context, dir string) (Detection, bool, error) 
 func firstLine(s string) string {
 	for line := range strings.SplitSeq(s, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
-			return line
+			return cleanName(line)
 		}
 	}
 	return ""
 }
+
+// commandOutputCap is how much of a scanner's output is kept: the name comes from its first line, and a scanner that
+// prints without end must not fill memory.
+const commandOutputCap = 64 << 10
+
+// cappedBuffer keeps the first commandOutputCap bytes written and discards the rest, still reporting every write as
+// taken so the program is not blocked on a full pipe.
+type cappedBuffer struct{ b []byte }
+
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if room := commandOutputCap - len(c.b); room > 0 {
+		c.b = append(c.b, p[:min(room, len(p))]...)
+	}
+	return len(p), nil
+}
+
+func (c *cappedBuffer) String() string { return string(c.b) }

@@ -60,15 +60,29 @@ func (c Clamd) connect(ctx context.Context) (net.Conn, error) {
 	if c.Dial != nil {
 		conn, err := c.Dial(ctx)
 		if err != nil {
+			if cerr := ctx.Err(); cerr != nil {
+				return nil, cerr
+			}
 			return nil, fmt.Errorf("%w: %w", ErrNoScanner, err)
 		}
 		return conn, nil
 	}
 	d := &net.Dialer{Timeout: clamdTimeout}
 	for _, path := range c.candidates() {
-		if conn, err := d.DialContext(ctx, "unix", path); err == nil {
-			return conn, nil
+		conn, err := d.DialContext(ctx, "unix", path)
+		if err != nil {
+			continue
 		}
+		// A configured Socket is the caller's choice; a default-list one is checked on the connection itself, since
+		// its owner can change after candidates looked.
+		if c.Socket == "" && !trustedPeer(conn) {
+			_ = conn.Close()
+			continue
+		}
+		return conn, nil
+	}
+	if cerr := ctx.Err(); cerr != nil {
+		return nil, cerr
 	}
 	return nil, ErrNoScanner
 }
@@ -108,7 +122,10 @@ func (c Clamd) Scan(ctx context.Context, dir string) (Detection, bool, error) {
 // scanFile returns the threat clamd names for the file, or "" when it is clean; ErrTooLarge when the file is over
 // clamd's stream limit.
 func (c Clamd) scanFile(ctx context.Context, root *os.Root, rel string) (string, error) {
-	in, err := root.Open(rel)
+	in, err := openRegular(root, rel)
+	if errors.Is(err, errNotRegular) {
+		return "", nil
+	}
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +207,7 @@ func parseReply(r io.Reader) (string, error) {
 	switch {
 	case strings.HasSuffix(line, " FOUND"):
 		name := strings.TrimSuffix(line, " FOUND")
-		return strings.TrimSpace(strings.TrimPrefix(name, "stream:")), nil
+		return cleanName(strings.TrimPrefix(name, "stream:")), nil
 	case strings.HasSuffix(line, "size limit exceeded. ERROR"):
 		return "", ErrTooLarge
 	case strings.HasSuffix(line, " OK"):
