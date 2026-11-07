@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// trustedPeer reports whether the process on the other end of a default-list socket runs as root or the clamav user.
+// trustedPeer reports whether the process on the other end of a default-list socket runs as root or a system account.
 // The path's owner can change between the stat and the dial; the peer credentials of the connected socket cannot.
 func trustedPeer(conn net.Conn) bool {
 	uc, ok := conn.(*net.UnixConn)

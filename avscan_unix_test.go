@@ -77,3 +77,26 @@ func TestOpenRegularSkipsAFIFO(t *testing.T) {
 	}
 	_ = f.Close()
 }
+
+func TestTrustedUIDAcceptsAnySystemAccountButNotTheCurrentUser(t *testing.T) {
+	t.Parallel()
+	for uid, want := range map[uint32]bool{0: true, 955: uid955(), 100: uid100(), 1000: false, 65534: false} {
+		if got := trustedUID(uid); got != want {
+			t.Errorf("trustedUID(%d) = %v, want %v", uid, got, want)
+		}
+	}
+	st, err := os.Stat(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sys, ok := st.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatal("no stat_t")
+	}
+	if sys.Uid != 0 && trustedUID(sys.Uid) {
+		t.Fatalf("the current user %d was trusted", sys.Uid)
+	}
+}
+
+func uid955() bool { return os.Geteuid() != 955 }
+func uid100() bool { return os.Geteuid() != 100 }

@@ -4,12 +4,12 @@ package avscan
 
 import (
 	"os"
-	"os/user"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
-// trustedSocketOwner reports whether a default-list socket is owned by root or the clamav user, so another local
+// trustedSocketOwner reports whether a default-list socket is owned by root or a system account, so another local
 // user who binds a world-writable path (/tmp) cannot answer "OK" for every scan. A path that cannot be stat'ed is
 // not trusted: a socket another user binds after the check must not pass for one that was never seen.
 func trustedSocketOwner(path string) bool {
@@ -21,14 +21,30 @@ func trustedSocketOwner(path string) bool {
 	return ok && trustedUID(st.Uid)
 }
 
+// trustedUID accepts root and any system account (below UID_MIN), whatever the distribution names its clamd user
+// (clamav, clamscan, clamd). The current user is never trusted unless root: a socket this user can bind proves nothing.
 func trustedUID(uid uint32) bool {
 	if uid == 0 {
 		return true
 	}
-	u, err := user.Lookup("clamav")
+	return uid < systemUIDLimit() && int64(uid) != int64(os.Geteuid())
+}
+
+// defaultUIDMin is the first ordinary user's uid when /etc/login.defs says nothing.
+const defaultUIDMin = 1000
+
+func systemUIDLimit() uint32 {
+	data, err := os.ReadFile("/etc/login.defs")
 	if err != nil {
-		return false
+		return defaultUIDMin
 	}
-	clamav, err := strconv.ParseUint(u.Uid, 10, 32)
-	return err == nil && uint32(clamav) == uid
+	for line := range strings.SplitSeq(string(data), "\n") {
+		f := strings.Fields(line)
+		if len(f) == 2 && f[0] == "UID_MIN" {
+			if v, err := strconv.ParseUint(f[1], 10, 32); err == nil {
+				return uint32(v)
+			}
+		}
+	}
+	return defaultUIDMin
 }

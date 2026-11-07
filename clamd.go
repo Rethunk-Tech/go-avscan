@@ -36,7 +36,7 @@ var ErrTooLarge = errors.New("too large for the antivirus to scan")
 // Clamd streams each file to a clamd daemon (INSTREAM), so the daemon needs no read access to the scanned folder.
 type Clamd struct {
 	// Socket is clamd's unix socket, trusted as given. "" tries the distribution default sockets, skipping any not
-	// owned by root or the clamav user, so another local user who binds a world-writable path cannot answer "OK".
+	// owned by root or a system account, so another local user who binds a world-writable path cannot answer "OK".
 	Socket string
 	// Dial opens a connection to clamd, for a daemon on TCP or TLS. When set it replaces Socket and the default list,
 	// and the caller owns trusting what it dials. An error from Dial counts as no daemon.
