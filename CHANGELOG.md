@@ -6,6 +6,8 @@ Notable changes to `go-avscan`. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-07
+
 ### Fixed
 
 - A default-list clamd socket that cannot be stat'ed is no longer trusted, and on Linux the connection's peer uid must be root or `clamav`, so a socket another user binds in `/tmp` cannot answer "OK".
@@ -29,5 +31,6 @@ Notable changes to `go-avscan`. The format follows
 - `Command`: scans a folder with a program the caller names, no shell, and `Program` for its name.
 - `AMSI`: scans a folder through the Windows AMSI provider; `SecurityCenterProducts` lists the antivirus products Windows Security Center registers.
 
-[Unreleased]: https://github.com/Rethunk-Tech/go-avscan/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Rethunk-Tech/go-avscan/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Rethunk-Tech/go-avscan/compare/v0.2.0...v0.2.1
 [0.1.0]: https://github.com/Rethunk-Tech/go-avscan/releases/tag/v0.1.0
