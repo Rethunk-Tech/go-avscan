@@ -1,4 +1,4 @@
-module github.com/Rethunk-Tech/go-avscan
+module github.com/Totative/go-avscan
 
 go 1.27.3
 

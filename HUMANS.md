@@ -5,7 +5,7 @@ Run and use `go-avscan`. Internals: [AGENTS.md](AGENTS.md).
 ## Quick start
 
 ```bash
-go get github.com/Rethunk-Tech/go-avscan
+go get github.com/Totative/go-avscan
 ```
 
 ```go
@@ -16,7 +16,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Rethunk-Tech/go-avscan"
+	"github.com/Totative/go-avscan"
 )
 
 // check reports whether dir is safe to use; a machine with no scanner counts as safe here, a choice the caller makes.

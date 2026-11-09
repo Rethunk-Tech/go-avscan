@@ -37,7 +37,7 @@ Notable changes to `go-avscan`. The format follows
 - `Command`: scans a folder with a program the caller names, no shell, and `Program` for its name.
 - `AMSI`: scans a folder through the Windows AMSI provider; `SecurityCenterProducts` lists the antivirus products Windows Security Center registers.
 
-[Unreleased]: https://github.com/Rethunk-Tech/go-avscan/compare/v0.2.2...HEAD
-[0.2.2]: https://github.com/Rethunk-Tech/go-avscan/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/Rethunk-Tech/go-avscan/compare/v0.2.0...v0.2.1
-[0.1.0]: https://github.com/Rethunk-Tech/go-avscan/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Totative/go-avscan/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Totative/go-avscan/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/Totative/go-avscan/compare/v0.2.0...v0.2.1
+[0.1.0]: https://github.com/Totative/go-avscan/releases/tag/v0.1.0

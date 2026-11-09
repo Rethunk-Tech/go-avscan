@@ -9,14 +9,14 @@
 
 ---
 
-Asks the machine's antivirus about a folder of files: Windows AMSI, a clamd daemon, or a command you name. Package `avscan`, module `github.com/Rethunk-Tech/go-avscan`.
+Asks the machine's antivirus about a folder of files: Windows AMSI, a clamd daemon, or a command you name. Package `avscan`, module `github.com/Totative/go-avscan`.
 
 Every scanner answers the same question for a folder: did the antivirus flag anything, and which file. A scan that could not run says so with an error and never reads as a clean result, and a machine with no scanner is a distinct, checkable error (`ErrNoScanner`) so a caller can choose to skip.
 
 ## Quick start
 
 ```bash
-go get github.com/Rethunk-Tech/go-avscan
+go get github.com/Totative/go-avscan
 ```
 
 A worked example and the contracts: [HUMANS.md](HUMANS.md).
