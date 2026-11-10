@@ -6,6 +6,17 @@ Notable changes to `go-avscan`. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-10
+
+### Changed
+
+- The module path is now `github.com/Totative/go-avscan`; update imports and the `require` line in `go.mod`.
+- The licence is now Apache-2.0.
+
+### Added
+
+- Each release tarball carries a signed build provenance and an SBOM attestation; check one with `gh attestation verify <file> --owner Totative`.
+
 ## [0.2.2] - 2026-11-07
 
 ### Fixed
@@ -37,7 +48,8 @@ Notable changes to `go-avscan`. The format follows
 - `Command`: scans a folder with a program the caller names, no shell, and `Program` for its name.
 - `AMSI`: scans a folder through the Windows AMSI provider; `SecurityCenterProducts` lists the antivirus products Windows Security Center registers.
 
-[Unreleased]: https://github.com/Totative/go-avscan/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/Totative/go-avscan/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Totative/go-avscan/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Totative/go-avscan/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Totative/go-avscan/compare/v0.2.0...v0.2.1
 [0.1.0]: https://github.com/Totative/go-avscan/releases/tag/v0.1.0
