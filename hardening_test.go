@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -89,5 +91,31 @@ func TestCommandOutputIsBoundedAndNameCapped(t *testing.T) {
 	got, found, err := Command{Line: line}.Scan(t.Context(), dir)
 	if err != nil || !found || got.Name != strings.Repeat("0", maxNameLen) {
 		t.Fatalf("detection = %d bytes %v, %v", len(got.Name), found, err)
+	}
+}
+
+// GitHub's dependency graph reports x/sys and x/tools as
+// "BSD-3-Clause AND LicenseRef-scancode-google-patent-license-golang", and the
+// dependency-review action resolves an AND expression only when every term is
+// allowed, so every x/sys bump fails the review check until the allow list
+// carries the PATENTS grant too.
+func TestDependencyReviewAllowsTheGoPatentGrant(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(".github/workflows/dependency-review.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var allowed []string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "allow-licenses:")
+		if !ok {
+			continue
+		}
+		for item := range strings.SplitSeq(value, ",") {
+			allowed = append(allowed, strings.TrimSpace(item))
+		}
+	}
+	if !slices.Contains(allowed, "LicenseRef-scancode-google-patent-license-golang") {
+		t.Fatalf("allow-licenses = %q, want the Go PATENTS grant beside BSD-3-Clause", allowed)
 	}
 }
