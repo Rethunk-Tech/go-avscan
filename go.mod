@@ -12,7 +12,7 @@ tool (
 
 require (
 	github.com/Rethunk-Tech/go-desktopenv v0.9.0
-	golang.org/x/sys v0.49.0
+	golang.org/x/sys v0.50.0
 )
 
 require (
