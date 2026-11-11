@@ -204,6 +204,27 @@ func TestClamdEmptyDirNeedsADaemon(t *testing.T) {
 	if d, found, err := fakeClamd(t, 0).Scan(t.Context(), dir); found || err != nil {
 		t.Fatalf("fake daemon on empty dir = %+v, %v, %v", d, found, err)
 	}
+	// A listener that accepts and never answers is not a daemon.
+	ln := listenTCP(t)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { _ = conn.Close() })
+		}
+	}()
+	silent := Clamd{Dial: func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", ln.Addr().String())
+	}}
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	if _, found, err := silent.Scan(ctx, dir); found || err == nil {
+		t.Fatalf("silent listener on empty dir: found=%v err=%v", found, err)
+	}
 }
 
 func TestClamdWithoutADaemonIsNoScanner(t *testing.T) {
