@@ -208,6 +208,7 @@ func parseReply(r io.Reader) (string, error) {
 	if err != nil && line == "" {
 		return "", err
 	}
+	terminated := err == nil
 	line = strings.TrimSpace(strings.TrimRight(line, "\x00"))
 	switch {
 	case strings.HasSuffix(line, " FOUND"):
@@ -220,6 +221,9 @@ func parseReply(r io.Reader) (string, error) {
 	case strings.HasSuffix(line, "size limit exceeded. ERROR"):
 		return "", ErrTooLarge
 	case strings.HasSuffix(line, " OK"):
+		if !terminated {
+			return "", err
+		}
 		return "", nil
 	}
 	return "", fmt.Errorf("clamd answered %q", line)

@@ -380,6 +380,14 @@ func TestSecurityCenterProductsNamesOrErrors(t *testing.T) {
 
 // A write that fails because clamd closed early is explained by whatever clamd said before closing; with nothing said,
 // the write error stands.
+func TestParseReplyUnterminatedOKIsAnError(t *testing.T) {
+	t.Parallel()
+	name, err := parseReply(strings.NewReader("stream: OK"))
+	if name != "" || err == nil {
+		t.Fatalf("unterminated OK = %q, %v; want error", name, err)
+	}
+}
+
 func TestParseReplyEmptyFoundNameIsAnError(t *testing.T) {
 	t.Parallel()
 	for _, reply := range []string{"stream: FOUND\x00", "stream: \x01\x02 FOUND\x00"} {
