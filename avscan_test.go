@@ -131,6 +131,20 @@ func silentDaemon(context.Context) (net.Conn, error) {
 	return c, nil
 }
 
+// A Read of 0, nil is legal and must not send INSTREAM's end-of-stream chunk.
+type delayedReader struct {
+	once bool
+	io.Reader
+}
+
+func (d *delayedReader) Read(p []byte) (int, error) {
+	if !d.once {
+		d.once = true
+		return 0, nil
+	}
+	return d.Reader.Read(p)
+}
+
 func TestClamdProtocolFlagsOnlyTheInfectedFile(t *testing.T) {
 	t.Parallel()
 	dir := writeTree(t, map[string]string{"a/clean.dll": "hello", "b/bad.dll": "prefix" + eicar()})
@@ -141,6 +155,9 @@ func TestClamdProtocolFlagsOnlyTheInfectedFile(t *testing.T) {
 	clean := writeTree(t, map[string]string{"a.dll": "fine"})
 	if got, found, err := fakeClamd(t, 0).Scan(t.Context(), clean); found || err != nil {
 		t.Fatalf("clean tree = %+v, %v", got, err)
+	}
+	if got, found, err := fakeClamd(t, 0).ScanReader(t.Context(), "bad.dll", &delayedReader{Reader: strings.NewReader(eicar())}); err != nil || !found || got.Name != "Eicar-Test-Signature" {
+		t.Fatalf("a 0-byte Read ended the stream: %+v, %v, %v", got, found, err)
 	}
 }
 
@@ -182,6 +199,23 @@ func TestClamdDialReachesADaemonOverAnyTransport(t *testing.T) {
 	dir := writeTree(t, map[string]string{"bad.dll": eicar()})
 	if d, found, err := c.Scan(t.Context(), dir); !found || err != nil || d.File != "bad.dll" {
 		t.Fatalf("scan over TCP = %+v, %v, %v", d, found, err)
+	}
+	partial, full := net.Pipe()
+	go func() {
+		_, _ = io.ReadFull(full, make([]byte, len("zVERSION\x00")))
+		_, _ = full.Write([]byte("ClamAV 1.0.1"))
+		_ = full.Close()
+	}()
+	if got, err := (Clamd{Dial: func(context.Context) (net.Conn, error) { return partial, nil }}).Version(t.Context()); err != nil || got != "ClamAV 1.0.1" {
+		t.Fatalf("unterminated version = %q, %v", got, err)
+	}
+	emptyC, emptyS := net.Pipe()
+	go func() {
+		_, _ = io.ReadFull(emptyS, make([]byte, len("zVERSION\x00")))
+		_ = emptyS.Close()
+	}()
+	if _, err := (Clamd{Dial: func(context.Context) (net.Conn, error) { return emptyC, nil }}).Version(t.Context()); err == nil {
+		t.Fatal("an empty version was accepted")
 	}
 }
 
@@ -304,6 +338,12 @@ func TestSecurityCenterProductsNamesOrErrors(t *testing.T) {
 // the write error stands.
 func TestReplyOnWriteError(t *testing.T) {
 	t.Parallel()
+	if name, err := parseReply(strings.NewReader("stream: Eicar-Test-Signature FOUND")); name != "Eicar-Test-Signature" || err != nil {
+		t.Fatalf("unterminated FOUND = %q, %v", name, err)
+	}
+	if name, err := parseReply(strings.NewReader("")); name != "" || !errors.Is(err, io.EOF) {
+		t.Fatalf("silence = %q, %v", name, err)
+	}
 	writeErr := errors.New("broken pipe")
 	for name, c := range map[string]struct{ reply, wantName string }{
 		"clamd named a threat": {"stream: Eicar-Test-Signature FOUND\x00", "Eicar-Test-Signature"},
@@ -319,5 +359,19 @@ func TestReplyOnWriteError(t *testing.T) {
 		if name2 != c.wantName || (c.wantName == "" && !errors.Is(err, writeErr)) || (c.wantName != "" && err != nil) {
 			t.Errorf("%s: %q, %v", name, name2, err)
 		}
+	}
+	endC, endS := net.Pipe()
+	go func() {
+		one := make([]byte, 1)
+		for {
+			if _, err := io.ReadFull(endS, one); err != nil || one[0] == 0 {
+				_ = endS.Close()
+				return
+			}
+		}
+	}()
+	_, _, err := (Clamd{Dial: func(context.Context) (net.Conn, error) { return endC, nil }}).ScanReader(t.Context(), "f", strings.NewReader(""))
+	if err == nil || errors.Is(err, io.EOF) {
+		t.Fatalf("terminator write err = %v", err)
 	}
 }
