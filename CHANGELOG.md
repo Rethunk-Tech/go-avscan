@@ -12,6 +12,8 @@ Notable changes to `go-avscan`. The format follows
 
 ### Fixed
 
+- `avscan -command` now refuses a command line that does not contain `{path}`, so a scanner is never invoked without
+  the directory it is meant to scan.
 - A clamd scan whose write failed partway no longer counts an `OK` reply as clean: only a detection or the size-limit
   error overrides the write error, since clamd never saw the rest of the file.
 

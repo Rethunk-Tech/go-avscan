@@ -86,6 +86,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		scanner, kind = c, "clamd"
 	case *commandLine != "":
+		if !strings.Contains(*commandLine, "{path}") {
+			fmt.Fprintf(stderr, "error: -command must contain {path}, where the directory goes\n")
+			return 2
+		}
 		scanner, kind = avscan.Command{Line: *commandLine}, "command"
 	default:
 		scanner, kind = avscan.AMSI{AppName: "avscan"}, "amsi"
