@@ -174,6 +174,18 @@ func TestClamdStreamLimitIsAFailedScan(t *testing.T) {
 	}
 }
 
+func TestClamdEmptyDirNeedsADaemon(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	missing := Clamd{Socket: filepath.Join(t.TempDir(), "none.sock")}
+	if _, found, err := missing.Scan(t.Context(), dir); found || !errors.Is(err, ErrNoScanner) {
+		t.Fatalf("missing daemon on empty dir: found=%v err=%v", found, err)
+	}
+	if d, found, err := fakeClamd(t, 0).Scan(t.Context(), dir); found || err != nil {
+		t.Fatalf("fake daemon on empty dir = %+v, %v, %v", d, found, err)
+	}
+}
+
 func TestClamdWithoutADaemonIsNoScanner(t *testing.T) {
 	t.Parallel()
 	dir := writeTree(t, map[string]string{"a.dll": "x"})

@@ -91,11 +91,16 @@ func (c Clamd) connect(ctx context.Context) (net.Conn, error) {
 // walk, so a later detection still wins; with none, the first such file is reported as [ErrTooLarge]. With no
 // reachable daemon the error is [ErrNoScanner].
 func (c Clamd) Scan(ctx context.Context, dir string) (Detection, bool, error) {
+	conn, err := c.connect(ctx)
+	if err != nil {
+		return Detection{}, false, err
+	}
+	_ = conn.Close()
 	var found Detection
 	var hit bool
 	errStop := errors.New("stop")
 	var tooLarge error
-	err := files(ctx, dir, func(root *os.Root, rel string) error {
+	err = files(ctx, dir, func(root *os.Root, rel string) error {
 		name, err := c.scanFile(ctx, root, rel)
 		if errors.Is(err, ErrTooLarge) {
 			tooLarge = cmp.Or(tooLarge, fmt.Errorf("%s: %w", rel, err))
