@@ -1,3 +1,9 @@
+# Detection's `go test -race ./...` credits a package only for lines its own
+# tests execute and has no per-package floor. This run is that suite plus
+# -coverpkg=./... and the 75% floor.
+[gates.test]
+run = "bash scripts/check-package-coverage.sh"
+
 # `gate` derives build and test from the module, and finds `golangci-lint`,
 # `govulncheck` and `actionlint` only on PATH. A runner has none of the three, so
 # detection there falls back to `go vet` and skips the other two without failing
@@ -39,8 +45,3 @@ run = 'd=$(mktemp -d) && trap "rm -rf \"$d\"" EXIT && cp "$(go tool -n golangci-
 # guard is what keeps one definition serving both hooks.
 [gates.gitleaks]
 run = '[ -n "$CI" ] || gitleaks git --redact --no-banner --log-level warn'
-
-# -coverpkg=./... credits a package for lines any test in the module executes;
-# a 75% floor per package so a well-tested package cannot hide an untested one.
-[gates.coverage]
-run = "go test -coverpkg=./... -coverprofile=coverage.out ./... && awk 'NR==1{next} {p=$1; sub(/:[0-9].*$/,\"\",p); sub(/\\/[^\\/]+$/,\"\",p); s[p]+=$2; if($3+0>0) c[p]+=$2} END{e=0; for(p in s){pct=s[p]?100*c[p]/s[p]:100; printf \"%s: %.1f%%\\n\",p,pct; if(pct<75){printf \"%s below 75%%\\n\",p > \"/dev/stderr\"; e=1}} exit e}' coverage.out"
