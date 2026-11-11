@@ -348,6 +348,7 @@ func TestReplyOnWriteError(t *testing.T) {
 	for name, c := range map[string]struct{ reply, wantName string }{
 		"clamd named a threat": {"stream: Eicar-Test-Signature FOUND\x00", "Eicar-Test-Signature"},
 		"clamd said nothing":   {"", ""},
+		"clamd said OK":        {"stream: OK\x00", ""},
 	} {
 		client, server := net.Pipe()
 		go func() {

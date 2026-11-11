@@ -187,11 +187,11 @@ func (c Clamd) scanStream(ctx context.Context, in io.Reader) (string, error) {
 	return parseReply(conn)
 }
 
-// replyOnWriteError reads what clamd said when it closed the stream early (its size limit), else reports the write
-// error.
+// replyOnWriteError reads what clamd said when it closed the stream early: a detection or its size limit stands, but
+// an OK cannot vouch for bytes clamd never received, so anything else reports the write error.
 func replyOnWriteError(conn net.Conn, writeErr error) (string, error) {
 	name, err := parseReply(conn)
-	if err == nil || errors.Is(err, ErrTooLarge) {
+	if (err == nil && name != "") || errors.Is(err, ErrTooLarge) {
 		return name, err
 	}
 	return "", writeErr

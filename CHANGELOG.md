@@ -6,6 +6,11 @@ Notable changes to `go-avscan`. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A clamd scan whose write failed partway no longer counts an `OK` reply as clean: only a detection or the size-limit
+  error overrides the write error, since clamd never saw the rest of the file.
+
 ## [0.3.0] - 2026-11-10
 
 ### Changed
