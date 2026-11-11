@@ -30,6 +30,20 @@ A worked example and the contracts: [HUMANS.md](HUMANS.md).
 - clamd on a unix socket or any connection you dial (TCP, TLS), with a version query.
 - Lists the antivirus products Windows Security Center knows.
 
+## Command-line tool
+
+```bash
+go install github.com/Totative/go-avscan/cmd/avscan@latest
+```
+
+`avscan [flags] DIR` scans one directory. Choose exactly one of `-clamd ADDR` (`unix:/path` or `tcp:host:port`), `-command LINE`, or `-amsi` (Windows AMSI).
+
+Exit 0 is clean, 1 a detection, and 2 any error (usage, timeout, or a scan that did not finish).
+
+```json
+{"dir":"/inbox","scanner":"command","clean":true,"detection":null,"error":null}
+```
+
 ## Documentation
 
 | Doc | Audience |

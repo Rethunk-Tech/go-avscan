@@ -6,6 +6,10 @@ Notable changes to `go-avscan`. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `cmd/avscan` scans a directory through clamd, a named command, or Windows AMSI.
+
 ## [0.3.0] - 2026-11-10
 
 ### Changed

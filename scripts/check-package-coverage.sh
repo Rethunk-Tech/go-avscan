@@ -9,20 +9,26 @@ SKIP="${COVERAGE_SKIP_REGEX:-}"
 
 go test -race -coverpkg=./... -coverprofile=coverage.out ./...
 
+# Each package profile repeats every coverpkg block; counting them twice
+# halves a package the other binary did not execute.
 awk -v min="$MIN" -v skip="$SKIP" '
 NR == 1 { next }
 {
-	file = $1
-	sub(/:[0-9]+\.[0-9]+,[0-9]+\.[0-9]+$/, "", file)
-	pkg = file
-	sub(/\/[^\/]+$/, "", pkg)
-	if (skip != "" && pkg ~ skip) next
-	stmts = $2 + 0
+	loc = $1
+	stmt[loc] = $2 + 0
 	hits = $3 + 0
-	total[pkg] += stmts
-	if (hits > 0) covered[pkg] += stmts
+	if (hits > hit[loc]) hit[loc] = hits
 }
 END {
+	for (loc in stmt) {
+		file = loc
+		sub(/:[0-9]+\.[0-9]+,[0-9]+\.[0-9]+$/, "", file)
+		pkg = file
+		sub(/\/[^\/]+$/, "", pkg)
+		if (skip != "" && pkg ~ skip) continue
+		total[pkg] += stmt[loc]
+		if (hit[loc] > 0) covered[pkg] += stmt[loc]
+	}
 	fail = 0
 	for (p in total) {
 		if (total[p] == 0) pct = 100
