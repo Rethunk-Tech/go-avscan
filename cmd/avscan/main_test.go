@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -68,22 +69,29 @@ func TestUsage(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
+		want string
 	}{
-		{"no args", nil},
-		{"two dirs", []string{dir, dir}},
-		{"file instead of dir", []string{"-command", "true", file}},
-		{"two scanners", []string{"-amsi", "-command", "true", dir}},
-		{"no scanner", []string{dir}},
-		{"bad clamd form", []string{"-clamd", "http://127.0.0.1:3310", dir}},
-		{"bad clamd unix", []string{"-clamd", "unix:", dir}},
-		{"bad clamd tcp", []string{"-clamd", "tcp:localhost", dir}},
-		{"unknown flag", []string{"-bogus", dir}},
+		{"no args", nil, "usage:"},
+		{"two dirs", []string{dir, dir}, "usage:"},
+		{"file instead of dir", []string{"-command", "true {path}", file}, "is not a directory"},
+		{"two scanners", []string{"-amsi", "-command", "true", dir}, "usage:"},
+		{"no scanner", []string{dir}, "usage:"},
+		{"bad clamd form", []string{"-clamd", "http://127.0.0.1:3310", dir}, "unix:/path or tcp:host:port"},
+		{"bad clamd unix", []string{"-clamd", "unix:", dir}, "unix:/path or tcp:host:port"},
+		{"bad clamd tcp", []string{"-clamd", "tcp:localhost", dir}, "unix:/path or tcp:host:port"},
+		{"unknown flag", []string{"-bogus", dir}, "flag provided but not defined"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code, _, _ := invoke(t.Context(), tt.args...)
+			code, stdout, stderr := invoke(t.Context(), tt.args...)
 			if code != 2 {
 				t.Fatalf("exit %d, want 2", code)
+			}
+			if stdout != "" {
+				t.Fatalf("stdout %q, want empty", stdout)
+			}
+			if !strings.Contains(stderr, tt.want) {
+				t.Fatalf("stderr %q, want substring %q", stderr, tt.want)
 			}
 		})
 	}
@@ -305,5 +313,61 @@ func TestCommandPathFollowsSymlinksBeforeDotDot(t *testing.T) {
 	}
 	if got := readArgv(t, argvDir); got != want {
 		t.Fatalf("scanned %q, want %q (link/../scan through the symlink)", got, want)
+	}
+}
+
+func TestParseClamd(t *testing.T) {
+	t.Parallel()
+	if _, err := parseClamd("unix:/run/clamd.sock"); err != nil {
+		t.Fatalf("unix: %v", err)
+	}
+	if _, err := parseClamd("tcp:127.0.0.1:3310"); err != nil {
+		t.Fatalf("tcp: %v", err)
+	}
+	for _, addr := range []string{"", "unix", "unix:", "tcp:", "tcp:localhost", "http://127.0.0.1:3310"} {
+		if _, err := parseClamd(addr); err == nil {
+			t.Errorf("%q: accepted", addr)
+		}
+	}
+}
+
+func TestJSONDirIsAbsolute(t *testing.T) {
+	skipWindowsShell(t)
+	parent := t.TempDir()
+	name := "scanme"
+	dir := filepath.Join(parent, name)
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	script := writeScript(t, t.TempDir(), "clean.sh", "exit 0")
+	t.Chdir(parent)
+	code, stdout, stderr := invoke(t.Context(), "-json", "-command", "sh "+script+" {path}", name)
+	if code != 0 {
+		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
+	}
+	m := parseJSON(t, stdout)
+	got, _ := m["dir"].(string)
+	want, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("dir %q, want %q", got, want)
+	}
+}
+
+type failWriter struct{}
+
+func (failWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestJSONEncodeError(t *testing.T) {
+	dir := t.TempDir()
+	var stderr bytes.Buffer
+	code := run(t.Context(), []string{"-json", "-amsi", dir}, failWriter{}, &stderr)
+	if code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "error:") {
+		t.Fatalf("stderr %q, want an encode error", stderr.String())
 	}
 }
