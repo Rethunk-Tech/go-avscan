@@ -64,7 +64,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	dir, err := filepath.Abs(fs.Arg(0))
+	// Symlinks are resolved before the path is made absolute: Abs collapses ".." lexically, so "link/../scan" would
+	// otherwise name a different folder than the one the shell meant.
+	dir, err := filepath.EvalSymlinks(fs.Arg(0))
+	if err == nil {
+		dir, err = filepath.Abs(dir)
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 2

@@ -119,21 +119,7 @@ func TestCommandPathIsAbsolute(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
 	}
-	root, err := os.OpenRoot(argvDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = root.Close() })
-	f, err := root.Open("argv")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = f.Close() }()
-	got, err := io.ReadAll(f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotPath := string(bytes.TrimSpace(got))
+	gotPath := readArgv(t, argvDir)
 	if !filepath.IsAbs(gotPath) {
 		t.Fatalf("path %q is not absolute", gotPath)
 	}
@@ -273,5 +259,51 @@ func TestTimeout(t *testing.T) {
 	m := parseJSON(t, stdout)
 	if m["clean"] != false {
 		t.Fatalf("clean=%v, want false", m["clean"])
+	}
+}
+
+// readArgv returns the first argument the argv.sh script recorded in dir.
+func readArgv(t *testing.T, dir string) string {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = root.Close() }()
+	f, err := root.Open("argv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	got, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(bytes.TrimSpace(got))
+}
+
+func TestCommandPathFollowsSymlinksBeforeDotDot(t *testing.T) {
+	skipWindowsShell(t)
+	base := t.TempDir()
+	for _, d := range []string{"actual/child", "actual/scan", "scan"} {
+		if err := os.MkdirAll(filepath.Join(base, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(base, "actual", "child"), filepath.Join(base, "link")); err != nil {
+		t.Fatal(err)
+	}
+	argvDir := t.TempDir()
+	script := writeScript(t, t.TempDir(), "argv.sh", "printf '%s\\n' \"$1\" > '"+filepath.Join(argvDir, "argv")+"'")
+	t.Chdir(base)
+	if code, _, stderr := invoke(t.Context(), "-command", "sh "+script+" {path}", "link/../scan"); code != 0 {
+		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
+	}
+	want, err := filepath.EvalSymlinks(filepath.Join(base, "actual", "scan"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readArgv(t, argvDir); got != want {
+		t.Fatalf("scanned %q, want %q (link/../scan through the symlink)", got, want)
 	}
 }
