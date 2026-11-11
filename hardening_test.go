@@ -52,7 +52,11 @@ func TestAMSIViewOverlapsChunksAndCoversEveryByte(t *testing.T) {
 	if len(windows) != 4 || !strings.HasPrefix(windows[1], "6789") {
 		t.Fatalf("windows = %q", windows)
 	}
-	if empty := newAMSIView(strings.NewReader(""), 0, chunk, overlap); func() bool { b, err := empty.next(); return len(b) != 0 || !errors.Is(err, io.EOF) }() {
+	empty := newAMSIView(strings.NewReader(""), 0, chunk, overlap)
+	if empty.fresh != 0 {
+		t.Fatalf("empty file fresh = %d", empty.fresh)
+	}
+	if b, err := empty.next(); len(b) != 0 || !errors.Is(err, io.EOF) {
 		t.Fatal("an empty file has no window")
 	}
 	if small := newAMSIView(strings.NewReader("ab"), 2, 1<<20, 1<<20); len(small.buf) != 1<<20+2 {
@@ -82,10 +86,16 @@ func TestACancelledDialIsNotNoScanner(t *testing.T) {
 }
 
 func TestCommandOutputIsBoundedAndNameCapped(t *testing.T) {
+	t.Parallel()
+	var buf cappedBuffer
+	_, _ = buf.Write([]byte("abc"))
+	n, err := buf.Write(bytes.Repeat([]byte("x"), commandOutputCap))
+	if err != nil || n != commandOutputCap || len(buf.b) != commandOutputCap {
+		t.Fatalf("Write = %d, kept %d, %v", n, len(buf.b), err)
+	}
 	if runtime.GOOS == "windows" {
 		t.Skip("uses sh")
 	}
-	t.Parallel()
 	dir := writeTree(t, map[string]string{"a.dll": "x"})
 	line := `sh -c "printf '%0300d\n' 0; yes | head -c 20000000; exit 1" {path}`
 	got, found, err := Command{Line: line}.Scan(t.Context(), dir)
