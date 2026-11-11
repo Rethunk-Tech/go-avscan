@@ -225,6 +225,26 @@ func TestClamdEmptyDirNeedsADaemon(t *testing.T) {
 	if _, found, err := silent.Scan(ctx, dir); found || err == nil {
 		t.Fatalf("silent listener on empty dir: found=%v err=%v", found, err)
 	}
+	// Something that answers, but not as clamd, is not a daemon either.
+	for _, reply := range []string{"SSH-2.0-OpenSSH_9.9\r\n", "\x00", "x", "ClamAV 1.0.1"} {
+		ln := listenTCP(t)
+		t.Cleanup(func() { _ = ln.Close() })
+		go func() {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = conn.Write([]byte(reply))
+			_ = conn.Close()
+		}()
+		other := Clamd{Dial: func(ctx context.Context) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "tcp", ln.Addr().String())
+		}}
+		if _, found, err := other.Scan(t.Context(), dir); found || err == nil {
+			t.Fatalf("reply %q on empty dir: found=%v err=%v", reply, found, err)
+		}
+	}
 }
 
 func TestClamdWithoutADaemonIsNoScanner(t *testing.T) {
@@ -259,8 +279,9 @@ func TestClamdDialReachesADaemonOverAnyTransport(t *testing.T) {
 		_, _ = full.Write([]byte("ClamAV 1.0.1"))
 		_ = full.Close()
 	}()
-	if got, err := (Clamd{Dial: func(context.Context) (net.Conn, error) { return partial, nil }}).Version(t.Context()); err != nil || got != "ClamAV 1.0.1" {
-		t.Fatalf("unterminated version = %q, %v", got, err)
+	// Version is Scan's proof that a daemon answered, so a line cut off before its NUL does not count.
+	if got, err := (Clamd{Dial: func(context.Context) (net.Conn, error) { return partial, nil }}).Version(t.Context()); err == nil {
+		t.Fatalf("unterminated version = %q, accepted", got)
 	}
 	emptyC, emptyS := net.Pipe()
 	go func() {
@@ -321,6 +342,9 @@ func TestCustomCommandExitCodeDecidesAndStdoutNames(t *testing.T) {
 	}
 	if _, _, err := (Command{}).Scan(t.Context(), dir); !errors.Is(err, ErrNoScanner) {
 		t.Fatalf("empty command err = %v", err)
+	}
+	if _, found, err := (Command{Line: "true"}).Scan(t.Context(), dir); found || !errors.Is(err, errNoPathInLine) {
+		t.Fatalf("a line without {path}: found=%v err=%v", found, err)
 	}
 }
 

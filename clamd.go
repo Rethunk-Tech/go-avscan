@@ -242,10 +242,15 @@ func (c Clamd) Version(ctx context.Context) (string, error) {
 		return "", err
 	}
 	line, err := bufio.NewReader(io.LimitReader(conn, 4096)).ReadString(0)
-	if err != nil && line == "" {
+	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(strings.TrimRight(line, "\x00")), nil
+	// Scan relies on this as proof a daemon is there, so only a terminated ClamAV version line counts.
+	version := strings.TrimSpace(strings.TrimRight(line, "\x00"))
+	if !strings.HasPrefix(version, "ClamAV ") {
+		return "", fmt.Errorf("not clamd: answered %q", cleanName(version))
+	}
+	return version, nil
 }
 
 // bound gives conn clamdTimeout, or ctx's deadline when that is sooner, and ends a blocked read or write as soon as

@@ -12,6 +12,13 @@ Notable changes to `go-avscan`. The format follows
 
 ### Fixed
 
+- `Clamd.Scan` accepts only a NUL-terminated `ClamAV` version line as proof a daemon answered: a port that answers
+  with anything else (an SSH banner, a stray byte) no longer makes an empty folder read clean.
+- `AMSI.Scan` asks the provider once before walking, so an empty folder with no AMSI provider is `ErrNoScanner`, and a
+  file whose size cannot be read is an error.
+- `Command.Scan` refuses a line without `{path}`: the program would never be given the folder.
+- `avscan` keeps a detection that lands as `-timeout` fires instead of reporting only the timeout.
+- `avscan` prints the folder with symlinks resolved (for example `/private/tmp` on macOS).
 - `avscan -command` now refuses a command line that does not contain `{path}`, so a scanner is never invoked without
   the directory it is meant to scan.
 - `avscan` resolves DIR to an absolute path before scanning, so a folder named `--version` reaches the scanner as a
