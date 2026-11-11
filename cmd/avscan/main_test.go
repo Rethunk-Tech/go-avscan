@@ -52,7 +52,7 @@ func skipWindowsShell(t *testing.T) {
 func writeScript(t *testing.T, dir, name, body string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -61,7 +61,7 @@ func writeScript(t *testing.T, dir, name, body string) string {
 func TestUsage(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "file")
-	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	tests := []struct {
@@ -76,10 +76,11 @@ func TestUsage(t *testing.T) {
 		{"bad clamd form", []string{"-clamd", "http://127.0.0.1:3310", dir}},
 		{"bad clamd unix", []string{"-clamd", "unix:", dir}},
 		{"bad clamd tcp", []string{"-clamd", "tcp:localhost", dir}},
+		{"unknown flag", []string{"-bogus", dir}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code, _, _ := invoke(context.Background(), tt.args...)
+			code, _, _ := invoke(t.Context(), tt.args...)
 			if code != 2 {
 				t.Fatalf("exit %d, want 2", code)
 			}
@@ -91,7 +92,7 @@ func TestCommandClean(t *testing.T) {
 	skipWindowsShell(t)
 	script := writeScript(t, t.TempDir(), "clean.sh", "exit 0")
 	dir := t.TempDir()
-	code, stdout, stderr := invoke(context.Background(), "-command", script, dir)
+	code, stdout, stderr := invoke(t.Context(), "-command", "sh "+script, dir)
 	if code != 0 {
 		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
 	}
@@ -105,8 +106,9 @@ func TestCommandDetection(t *testing.T) {
 	skipWindowsShell(t)
 	script := writeScript(t, t.TempDir(), "detect.sh", "echo Eicar-Test-File\nexit 1")
 	dir := t.TempDir()
+	line := "sh " + script
 
-	code, stdout, stderr := invoke(context.Background(), "-json", "-command", script, dir)
+	code, stdout, stderr := invoke(t.Context(), "-json", "-command", line, dir)
 	if code != 1 {
 		t.Fatalf("exit %d, want 1; stderr=%q stdout=%q", code, stderr, stdout)
 	}
@@ -124,29 +126,25 @@ func TestCommandDetection(t *testing.T) {
 	if !ok {
 		t.Fatalf("detection=%v", m["detection"])
 	}
-	if det["name"] != "Eicar-Test-File" || det["file"] != "" || det["scanner"] != "detect.sh" {
+	if det["name"] != "Eicar-Test-File" || det["file"] != "" || det["scanner"] != "sh" {
 		t.Fatalf("detection fields %v", det)
 	}
 
-	code, stdout, stderr = invoke(context.Background(), "-command", script, dir)
+	code, stdout, stderr = invoke(t.Context(), "-command", line, dir)
 	if code != 1 {
 		t.Fatalf("human exit %d, want 1; stderr=%q", code, stderr)
 	}
-	want := "FOUND: Eicar-Test-File in  (detect.sh)\n"
+	want := "FOUND: Eicar-Test-File in  (sh)\n"
 	if stdout != want {
 		t.Fatalf("human stdout %q, want %q", stdout, want)
 	}
 }
 
 func TestCommandUnexpected(t *testing.T) {
-	skipWindowsShell(t)
 	// A program that does not start is a Command error, not a detection.
-	script := filepath.Join(t.TempDir(), "broken.sh")
-	if err := os.WriteFile(script, []byte("#!/no/such/interpreter\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	missing := filepath.Join(t.TempDir(), "no-such-scanner")
 	dir := t.TempDir()
-	code, stdout, _ := invoke(context.Background(), "-json", "-command", script, dir)
+	code, stdout, _ := invoke(t.Context(), "-json", "-command", missing, dir)
 	if code != 2 {
 		t.Fatalf("exit %d, want 2; stdout=%q", code, stdout)
 	}
@@ -161,11 +159,11 @@ func TestCommandUnexpected(t *testing.T) {
 
 func TestClamdMissingSocket(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("ok"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("ok"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	sock := filepath.Join(t.TempDir(), "missing.sock")
-	code, stdout, stderr := invoke(context.Background(), "-json", "-clamd", "unix:"+sock, dir)
+	code, stdout, stderr := invoke(t.Context(), "-json", "-clamd", "unix:"+sock, dir)
 	if code != 2 {
 		t.Fatalf("exit %d, want 2; stderr=%q stdout=%q", code, stderr, stdout)
 	}
@@ -173,13 +171,48 @@ func TestClamdMissingSocket(t *testing.T) {
 	if m["clean"] != false || m["scanner"] != "clamd" || m["error"] == nil {
 		t.Fatalf("got %v", m)
 	}
+
+	code, stdout, stderr = invoke(t.Context(), "-clamd", "unix:"+sock, dir)
+	if code != 2 || stdout != "" || stderr == "" {
+		t.Fatalf("human exit %d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestClamdTCPUnreachable(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("ok"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, _ := invoke(t.Context(), "-json", "-clamd", "tcp:127.0.0.1:1", dir)
+	if code != 2 {
+		t.Fatalf("exit %d, want 2; stdout=%q", code, stdout)
+	}
+	m := parseJSON(t, stdout)
+	if m["clean"] != false || m["error"] == nil {
+		t.Fatalf("got %v", m)
+	}
+}
+
+func TestAMSI(t *testing.T) {
+	dir := t.TempDir()
+	code, stdout, _ := invoke(t.Context(), "-json", "-amsi", dir)
+	m := parseJSON(t, stdout)
+	if runtime.GOOS != "windows" {
+		if code != 2 || m["clean"] != false || m["error"] == nil {
+			t.Fatalf("exit %d %v", code, m)
+		}
+		return
+	}
+	if code == 1 {
+		t.Fatalf("clean dir flagged: %v", m)
+	}
 }
 
 func TestTimeout(t *testing.T) {
 	skipWindowsShell(t)
 	script := writeScript(t, t.TempDir(), "slow.sh", "sleep 60\nexit 0")
 	dir := t.TempDir()
-	code, stdout, stderr := invoke(context.Background(), "-timeout", "1ms", "-json", "-command", script, dir)
+	code, stdout, stderr := invoke(t.Context(), "-timeout", "1ms", "-json", "-command", "sh "+script, dir)
 	if code != 2 {
 		t.Fatalf("exit %d, want 2; stdout=%q stderr=%q", code, stdout, stderr)
 	}
