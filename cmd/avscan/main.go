@@ -65,8 +65,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	dir := fs.Arg(0)
 	fi, err := os.Stat(dir)
-	if err != nil || !fi.IsDir() {
-		fs.Usage()
+	if err == nil && !fi.IsDir() {
+		err = fmt.Errorf("%s is not a directory", dir)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 2
 	}
 
@@ -78,7 +81,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	case *clamdAddr != "":
 		c, err := parseClamd(*clamdAddr)
 		if err != nil {
-			fs.Usage()
+			fmt.Fprintf(stderr, "error: %v\n", err)
 			return 2
 		}
 		scanner, kind = c, "clamd"
