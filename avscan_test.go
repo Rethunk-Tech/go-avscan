@@ -174,6 +174,26 @@ func TestClamdStreamLimitIsAFailedScan(t *testing.T) {
 	}
 }
 
+func TestClamdNotRegularAtOpenIsAnError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("opening a directory as a file is Unix")
+	}
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+	_, err = (Clamd{}).scanFile(t.Context(), root, "sub")
+	if !errors.Is(err, errNotRegular) {
+		t.Fatalf("err = %v, want errNotRegular", err)
+	}
+}
+
 func TestClamdEmptyDirNeedsADaemon(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

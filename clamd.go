@@ -129,7 +129,7 @@ func (c Clamd) Scan(ctx context.Context, dir string) (Detection, bool, error) {
 func (c Clamd) scanFile(ctx context.Context, root *os.Root, rel string) (string, error) {
 	in, err := openRegular(root, rel)
 	if errors.Is(err, errNotRegular) {
-		return "", nil
+		return "", fmt.Errorf("%s: %w", rel, err)
 	}
 	if err != nil {
 		return "", err

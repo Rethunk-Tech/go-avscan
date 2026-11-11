@@ -19,6 +19,7 @@ Notable changes to `go-avscan`. The format follows
 - A clamd scan of an empty or symlink-only folder now fails with `ErrNoScanner` when no daemon answers, instead of
   reporting the folder clean.
 - A command scanner killed by a signal is an error, not a detection.
+- A file swapped for a directory or FIFO after the walk is an error, not a skipped (clean) path.
 - A clamd scan whose write failed partway no longer counts an `OK` reply as clean: only a detection or the size-limit
   error overrides the write error, since clamd never saw the rest of the file.
 
