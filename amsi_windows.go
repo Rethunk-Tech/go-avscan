@@ -72,6 +72,16 @@ func (a AMSI) Scan(ctx context.Context, dir string) (Detection, bool, error) {
 		return Detection{}, false, fmt.Errorf("AmsiOpenSession: HRESULT 0x%x", hr)
 	}
 	defer func() { _, _, _ = amsiCloseSession.Call(actx, session) }()
+	// The no-provider answer only comes from AmsiScanBuffer, which an empty folder never reaches, so probe once.
+	probe := []byte{0}
+	var probeResult uint32
+	hr, _, _ := amsiScanBuffer.Call(actx, amsiPtr(&probe[0]), 1, 0, session, amsiPtr(&probeResult))
+	if hr&0xFFFFFFFF == amsiNotReady {
+		return Detection{}, false, fmt.Errorf("%w: AmsiScanBuffer: no provider answered", ErrNoScanner)
+	}
+	if hr != 0 {
+		return Detection{}, false, fmt.Errorf("AmsiScanBuffer: HRESULT 0x%x", hr)
+	}
 	var found Detection
 	var hit bool
 	errStop := errors.New("stop")
@@ -108,10 +118,11 @@ func scanFileAMSI(ctx context.Context, actx, session uintptr, root *os.Root, rel
 	if err != nil {
 		return false, err
 	}
-	size := int64(0)
-	if fi, err := in.Stat(); err == nil {
-		size = fi.Size()
+	fi, err := in.Stat()
+	if err != nil {
+		return false, err
 	}
+	size := fi.Size()
 	view := newAMSIView(in, size, amsiChunk, amsiOverlap)
 	for {
 		if err := ctx.Err(); err != nil {

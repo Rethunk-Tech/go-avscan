@@ -53,6 +53,9 @@ func (c Command) Program() string {
 	return filepath.Base(parts[0])
 }
 
+// errNoPathInLine refuses a command line that would never be given the folder.
+var errNoPathInLine = errors.New("avscan: command line has no {path}")
+
 // commandWaitDelay is how long a cancelled scan waits for the scanner's leftover children to close its output.
 const commandWaitDelay = 2 * time.Second
 
@@ -62,6 +65,10 @@ func (c Command) Scan(ctx context.Context, dir string) (Detection, bool, error) 
 	parts := splitCommand(c.Line)
 	if len(parts) == 0 {
 		return Detection{}, false, ErrNoScanner
+	}
+	// Without {path} the program never learns which folder to scan, and its exit 0 would read as this folder clean.
+	if !strings.Contains(c.Line, "{path}") {
+		return Detection{}, false, errNoPathInLine
 	}
 	for i, p := range parts {
 		parts[i] = strings.ReplaceAll(p, "{path}", dir)

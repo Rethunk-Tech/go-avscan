@@ -98,7 +98,7 @@ func TestCommandRequiresPath(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout %q, want empty", stdout)
 	}
-	want := "error: -command must contain {path}, where the directory goes\n"
+	want := "error: avscan: command line has no {path}\n"
 	if stderr != want {
 		t.Fatalf("stderr %q, want %q", stderr, want)
 	}
