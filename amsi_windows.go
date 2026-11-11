@@ -35,10 +35,6 @@ const (
 	amsiOverlap = 1 << 20
 )
 
-func amsiPtr[T any](v *T) uintptr {
-	return uintptr(unsafe.Pointer(v)) //nolint:gosec // G103: AMSI takes pointers to Go values
-}
-
 // AMSI is the Windows Antimalware Scan Interface: each file goes to the antivirus registered as the AMSI provider,
 // Defender or a third party. AppName is the name AmsiInitialize registers; "" uses the executable's base name. A
 // missing amsi.dll, a failed AmsiInitialize or no registered provider is [ErrNoScanner]. A file Windows refuses to open
@@ -63,19 +59,19 @@ func (a AMSI) Scan(ctx context.Context, dir string) (Detection, bool, error) {
 		return Detection{}, false, err
 	}
 	var actx uintptr
-	if hr, _, _ := amsiInitialize.Call(amsiPtr(app), amsiPtr(&actx)); hr != 0 {
+	if hr, _, _ := amsiInitialize.Call(uintptr(unsafe.Pointer(app)), uintptr(unsafe.Pointer(&actx))); hr != 0 { //nolint:gosec // G103: the conversion stays in the Call so its //go:uintptrescapes keeps the target alive
 		return Detection{}, false, fmt.Errorf("%w: AmsiInitialize HRESULT 0x%x", ErrNoScanner, hr)
 	}
 	defer func() { _, _, _ = amsiUninitialize.Call(actx) }()
 	var session uintptr
-	if hr, _, _ := amsiOpenSession.Call(actx, amsiPtr(&session)); hr != 0 {
+	if hr, _, _ := amsiOpenSession.Call(actx, uintptr(unsafe.Pointer(&session))); hr != 0 { //nolint:gosec // G103: the conversion stays in the Call so its //go:uintptrescapes keeps the target alive
 		return Detection{}, false, fmt.Errorf("AmsiOpenSession: HRESULT 0x%x", hr)
 	}
 	defer func() { _, _, _ = amsiCloseSession.Call(actx, session) }()
 	// The no-provider answer only comes from AmsiScanBuffer, which an empty folder never reaches, so probe once.
 	probe := []byte{0}
 	var probeResult uint32
-	hr, _, _ := amsiScanBuffer.Call(actx, amsiPtr(&probe[0]), 1, 0, session, amsiPtr(&probeResult))
+	hr, _, _ := amsiScanBuffer.Call(actx, uintptr(unsafe.Pointer(&probe[0])), 1, 0, session, uintptr(unsafe.Pointer(&probeResult))) //nolint:gosec // G103: the conversion stays in the Call so its //go:uintptrescapes keeps the target alive
 	if hr&0xFFFFFFFF == amsiNotReady {
 		return Detection{}, false, fmt.Errorf("%w: AmsiScanBuffer: no provider answered", ErrNoScanner)
 	}
@@ -131,8 +127,8 @@ func scanFileAMSI(ctx context.Context, actx, session uintptr, root *os.Root, rel
 		buf, err := view.next()
 		if len(buf) > 0 {
 			var result uint32
-			hr, _, _ := amsiScanBuffer.Call(actx, amsiPtr(&buf[0]), uintptr(len(buf)),
-				amsiPtr(name), session, amsiPtr(&result))
+			hr, _, _ := amsiScanBuffer.Call(actx, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), //nolint:gosec // G103: the conversion stays in the Call so its //go:uintptrescapes keeps the target alive
+				uintptr(unsafe.Pointer(name)), session, uintptr(unsafe.Pointer(&result))) //nolint:gosec // G103: the conversion stays in the Call so its //go:uintptrescapes keeps the target alive
 			if hr&0xFFFFFFFF == amsiNotReady {
 				return false, fmt.Errorf("%w: AmsiScanBuffer: no provider answered", ErrNoScanner)
 			}
