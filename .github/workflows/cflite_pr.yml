@@ -7,12 +7,15 @@ on:
 permissions:
   contents: read
 
+# A newer push makes the older run's verdict worthless, so it cancels that run rather than racing it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   PR:
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ matrix.sanitizer }}-${{ github.ref }}
-      cancel-in-progress: true
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
