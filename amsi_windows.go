@@ -98,7 +98,7 @@ func scanFileAMSI(ctx context.Context, actx, session uintptr, root *os.Root, rel
 		return true, nil
 	}
 	if errors.Is(err, errNotRegular) {
-		return false, nil
+		return false, fmt.Errorf("%s: %w", rel, err)
 	}
 	if err != nil {
 		return false, err

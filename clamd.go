@@ -91,6 +91,11 @@ func (c Clamd) connect(ctx context.Context) (net.Conn, error) {
 // walk, so a later detection still wins; with none, the first such file is reported as [ErrTooLarge]. With no
 // reachable daemon the error is [ErrNoScanner].
 func (c Clamd) Scan(ctx context.Context, dir string) (Detection, bool, error) {
+	// A daemon must answer the protocol before any result counts: an empty folder sends no file, and a listener that
+	// accepts but never replies would otherwise read clean.
+	if _, err := c.Version(ctx); err != nil {
+		return Detection{}, false, cmp.Or(ctx.Err(), err)
+	}
 	var found Detection
 	var hit bool
 	errStop := errors.New("stop")
@@ -124,7 +129,7 @@ func (c Clamd) Scan(ctx context.Context, dir string) (Detection, bool, error) {
 func (c Clamd) scanFile(ctx context.Context, root *os.Root, rel string) (string, error) {
 	in, err := openRegular(root, rel)
 	if errors.Is(err, errNotRegular) {
-		return "", nil
+		return "", fmt.Errorf("%s: %w", rel, err)
 	}
 	if err != nil {
 		return "", err
@@ -203,14 +208,22 @@ func parseReply(r io.Reader) (string, error) {
 	if err != nil && line == "" {
 		return "", err
 	}
+	terminated := err == nil
 	line = strings.TrimSpace(strings.TrimRight(line, "\x00"))
 	switch {
 	case strings.HasSuffix(line, " FOUND"):
 		name := strings.TrimSuffix(line, " FOUND")
-		return cleanName(strings.TrimPrefix(name, "stream:")), nil
+		cleaned := cleanName(strings.TrimPrefix(name, "stream:"))
+		if cleaned == "" {
+			return "", errors.New("clamd reported a detection without a name")
+		}
+		return cleaned, nil
 	case strings.HasSuffix(line, "size limit exceeded. ERROR"):
 		return "", ErrTooLarge
 	case strings.HasSuffix(line, " OK"):
+		if !terminated {
+			return "", err
+		}
 		return "", nil
 	}
 	return "", fmt.Errorf("clamd answered %q", line)

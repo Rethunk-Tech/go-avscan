@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -88,11 +89,50 @@ func TestUsage(t *testing.T) {
 	}
 }
 
+func TestCommandRequiresPath(t *testing.T) {
+	dir := t.TempDir()
+	code, stdout, stderr := invoke(t.Context(), "-command", "true", dir)
+	if code != 2 {
+		t.Fatalf("exit %d, want 2", code)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout %q, want empty", stdout)
+	}
+	want := "error: -command must contain {path}, where the directory goes\n"
+	if stderr != want {
+		t.Fatalf("stderr %q, want %q", stderr, want)
+	}
+}
+
+func TestCommandPathIsAbsolute(t *testing.T) {
+	skipWindowsShell(t)
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "--version")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	argvDir := t.TempDir()
+	argvFile := filepath.Join(argvDir, "argv")
+	script := writeScript(t, t.TempDir(), "argv.sh", "printf '%s\\n' \"$1\" > '"+argvFile+"'")
+	t.Chdir(parent)
+	code, _, stderr := invoke(t.Context(), "-command", "sh "+script+" {path}", "./--version")
+	if code != 0 {
+		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
+	}
+	gotPath := readArgv(t, argvDir)
+	if !filepath.IsAbs(gotPath) {
+		t.Fatalf("path %q is not absolute", gotPath)
+	}
+	if filepath.Base(gotPath) != "--version" {
+		t.Fatalf("path %q, want base --version", gotPath)
+	}
+}
+
 func TestCommandClean(t *testing.T) {
 	skipWindowsShell(t)
 	script := writeScript(t, t.TempDir(), "clean.sh", "exit 0")
 	dir := t.TempDir()
-	code, stdout, stderr := invoke(t.Context(), "-command", "sh "+script, dir)
+	code, stdout, stderr := invoke(t.Context(), "-command", "sh "+script+" {path}", dir)
 	if code != 0 {
 		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
 	}
@@ -106,7 +146,7 @@ func TestCommandDetection(t *testing.T) {
 	skipWindowsShell(t)
 	script := writeScript(t, t.TempDir(), "detect.sh", "echo Eicar-Test-File\nexit 1")
 	dir := t.TempDir()
-	line := "sh " + script
+	line := "sh " + script + " {path}"
 
 	code, stdout, stderr := invoke(t.Context(), "-json", "-command", line, dir)
 	if code != 1 {
@@ -144,7 +184,7 @@ func TestCommandUnexpected(t *testing.T) {
 	// A program that does not start is a Command error, not a detection.
 	missing := filepath.Join(t.TempDir(), "no-such-scanner")
 	dir := t.TempDir()
-	code, stdout, _ := invoke(t.Context(), "-json", "-command", missing, dir)
+	code, stdout, _ := invoke(t.Context(), "-json", "-command", missing+" {path}", dir)
 	if code != 2 {
 		t.Fatalf("exit %d, want 2; stdout=%q", code, stdout)
 	}
@@ -212,12 +252,58 @@ func TestTimeout(t *testing.T) {
 	skipWindowsShell(t)
 	script := writeScript(t, t.TempDir(), "slow.sh", "sleep 60\nexit 0")
 	dir := t.TempDir()
-	code, stdout, stderr := invoke(t.Context(), "-timeout", "1ms", "-json", "-command", "sh "+script, dir)
+	code, stdout, stderr := invoke(t.Context(), "-timeout", "1ms", "-json", "-command", "sh "+script+" {path}", dir)
 	if code != 2 {
 		t.Fatalf("exit %d, want 2; stdout=%q stderr=%q", code, stdout, stderr)
 	}
 	m := parseJSON(t, stdout)
 	if m["clean"] != false {
 		t.Fatalf("clean=%v, want false", m["clean"])
+	}
+}
+
+// readArgv returns the first argument the argv.sh script recorded in dir.
+func readArgv(t *testing.T, dir string) string {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = root.Close() }()
+	f, err := root.Open("argv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	got, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(bytes.TrimSpace(got))
+}
+
+func TestCommandPathFollowsSymlinksBeforeDotDot(t *testing.T) {
+	skipWindowsShell(t)
+	base := t.TempDir()
+	for _, d := range []string{"actual/child", "actual/scan", "scan"} {
+		if err := os.MkdirAll(filepath.Join(base, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(base, "actual", "child"), filepath.Join(base, "link")); err != nil {
+		t.Fatal(err)
+	}
+	argvDir := t.TempDir()
+	script := writeScript(t, t.TempDir(), "argv.sh", "printf '%s\\n' \"$1\" > '"+filepath.Join(argvDir, "argv")+"'")
+	t.Chdir(base)
+	if code, _, stderr := invoke(t.Context(), "-command", "sh "+script+" {path}", "link/../scan"); code != 0 {
+		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
+	}
+	want, err := filepath.EvalSymlinks(filepath.Join(base, "actual", "scan"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readArgv(t, argvDir); got != want {
+		t.Fatalf("scanned %q, want %q (link/../scan through the symlink)", got, want)
 	}
 }

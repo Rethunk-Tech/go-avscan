@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -63,7 +64,16 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	dir := fs.Arg(0)
+	// Symlinks are resolved before the path is made absolute: Abs collapses ".." lexically, so "link/../scan" would
+	// otherwise name a different folder than the one the shell meant.
+	dir, err := filepath.EvalSymlinks(fs.Arg(0))
+	if err == nil {
+		dir, err = filepath.Abs(dir)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 2
+	}
 	fi, err := os.Stat(dir)
 	if err == nil && !fi.IsDir() {
 		err = fmt.Errorf("%s is not a directory", dir)
@@ -86,6 +96,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		scanner, kind = c, "clamd"
 	case *commandLine != "":
+		if !strings.Contains(*commandLine, "{path}") {
+			fmt.Fprintf(stderr, "error: -command must contain {path}, where the directory goes\n")
+			return 2
+		}
 		scanner, kind = avscan.Command{Line: *commandLine}, "command"
 	default:
 		scanner, kind = avscan.AMSI{AppName: "avscan"}, "amsi"
@@ -95,6 +109,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 
 	d, found, err := scanner.Scan(ctx, dir)
+	if err == nil {
+		err = ctx.Err()
+	}
 	clean := err == nil && !found
 	code := 0
 	switch {

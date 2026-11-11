@@ -12,6 +12,16 @@ Notable changes to `go-avscan`. The format follows
 
 ### Fixed
 
+- `avscan -command` now refuses a command line that does not contain `{path}`, so a scanner is never invoked without
+  the directory it is meant to scan.
+- `avscan` resolves DIR to an absolute path before scanning, so a folder named `--version` reaches the scanner as a
+  path instead of a flag.
+- A clamd scan of an empty or symlink-only folder now fails with `ErrNoScanner` when no daemon answers, instead of
+  reporting the folder clean.
+- A command scanner killed by a signal is an error, not a detection.
+- A file swapped for a directory or FIFO after the walk is an error, not a skipped (clean) path.
+- A clamd `FOUND` reply with no threat name is an error, not a clean scan.
+- An unterminated clamd `OK` reply is an error, not a clean scan.
 - A clamd scan whose write failed partway no longer counts an `OK` reply as clean: only a detection or the size-limit
   error overrides the write error, since clamd never saw the rest of the file.
 

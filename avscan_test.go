@@ -174,6 +174,59 @@ func TestClamdStreamLimitIsAFailedScan(t *testing.T) {
 	}
 }
 
+func TestClamdNotRegularAtOpenIsAnError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("opening a directory as a file is Unix")
+	}
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+	_, err = (Clamd{}).scanFile(t.Context(), root, "sub")
+	if !errors.Is(err, errNotRegular) {
+		t.Fatalf("err = %v, want errNotRegular", err)
+	}
+}
+
+func TestClamdEmptyDirNeedsADaemon(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	missing := Clamd{Socket: filepath.Join(t.TempDir(), "none.sock")}
+	if _, found, err := missing.Scan(t.Context(), dir); found || !errors.Is(err, ErrNoScanner) {
+		t.Fatalf("missing daemon on empty dir: found=%v err=%v", found, err)
+	}
+	if d, found, err := fakeClamd(t, 0).Scan(t.Context(), dir); found || err != nil {
+		t.Fatalf("fake daemon on empty dir = %+v, %v, %v", d, found, err)
+	}
+	// A listener that accepts and never answers is not a daemon.
+	ln := listenTCP(t)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { _ = conn.Close() })
+		}
+	}()
+	silent := Clamd{Dial: func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", ln.Addr().String())
+	}}
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	if _, found, err := silent.Scan(ctx, dir); found || err == nil {
+		t.Fatalf("silent listener on empty dir: found=%v err=%v", found, err)
+	}
+}
+
 func TestClamdWithoutADaemonIsNoScanner(t *testing.T) {
 	t.Parallel()
 	dir := writeTree(t, map[string]string{"a.dll": "x"})
@@ -271,6 +324,18 @@ func TestCustomCommandExitCodeDecidesAndStdoutNames(t *testing.T) {
 	}
 }
 
+func TestCommandKilledBySignalIsAnError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses SIGSEGV")
+	}
+	t.Parallel()
+	dir := writeTree(t, map[string]string{"a.dll": "x"})
+	got, found, err := (Command{Line: `sh -c "kill -s SEGV $$" {path}`}).Scan(t.Context(), dir)
+	if found || err == nil {
+		t.Fatalf("signal death counted as detection: %+v found=%v err=%v", got, found, err)
+	}
+}
+
 func TestACancelledContextStopsEveryScanner(t *testing.T) {
 	t.Parallel()
 	dir := writeTree(t, map[string]string{"a.dll": "x", "b.dll": "y"})
@@ -336,6 +401,24 @@ func TestSecurityCenterProductsNamesOrErrors(t *testing.T) {
 
 // A write that fails because clamd closed early is explained by whatever clamd said before closing; with nothing said,
 // the write error stands.
+func TestParseReplyUnterminatedOKIsAnError(t *testing.T) {
+	t.Parallel()
+	name, err := parseReply(strings.NewReader("stream: OK"))
+	if name != "" || err == nil {
+		t.Fatalf("unterminated OK = %q, %v; want error", name, err)
+	}
+}
+
+func TestParseReplyEmptyFoundNameIsAnError(t *testing.T) {
+	t.Parallel()
+	for _, reply := range []string{"stream: FOUND\x00", "stream: \x01\x02 FOUND\x00"} {
+		name, err := parseReply(strings.NewReader(reply))
+		if name != "" || err == nil {
+			t.Fatalf("reply %q = %q, %v; want error", reply, name, err)
+		}
+	}
+}
+
 func TestReplyOnWriteError(t *testing.T) {
 	t.Parallel()
 	if name, err := parseReply(strings.NewReader("stream: Eicar-Test-Signature FOUND")); name != "Eicar-Test-Signature" || err != nil {
