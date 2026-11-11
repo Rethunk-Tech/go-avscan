@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -110,14 +111,25 @@ func TestCommandPathIsAbsolute(t *testing.T) {
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	argvFile := filepath.Join(t.TempDir(), "argv")
+	argvDir := t.TempDir()
+	argvFile := filepath.Join(argvDir, "argv")
 	script := writeScript(t, t.TempDir(), "argv.sh", "printf '%s\\n' \"$1\" > '"+argvFile+"'")
 	t.Chdir(parent)
 	code, _, stderr := invoke(t.Context(), "-command", "sh "+script+" {path}", "./--version")
 	if code != 0 {
 		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
 	}
-	got, err := os.ReadFile(argvFile)
+	root, err := os.OpenRoot(argvDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+	f, err := root.Open("argv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	got, err := io.ReadAll(f)
 	if err != nil {
 		t.Fatal(err)
 	}
