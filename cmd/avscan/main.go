@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -63,7 +64,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	dir := fs.Arg(0)
+	dir, err := filepath.Abs(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintf(stderr, "error: %v\n", err)
+		return 2
+	}
 	fi, err := os.Stat(dir)
 	if err == nil && !fi.IsDir() {
 		err = fmt.Errorf("%s is not a directory", dir)

@@ -103,6 +103,33 @@ func TestCommandRequiresPath(t *testing.T) {
 	}
 }
 
+func TestCommandPathIsAbsolute(t *testing.T) {
+	skipWindowsShell(t)
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "--version")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	argvFile := filepath.Join(t.TempDir(), "argv")
+	script := writeScript(t, t.TempDir(), "argv.sh", "printf '%s\\n' \"$1\" > '"+argvFile+"'")
+	t.Chdir(parent)
+	code, _, stderr := invoke(t.Context(), "-command", "sh "+script+" {path}", "./--version")
+	if code != 0 {
+		t.Fatalf("exit %d, want 0; stderr=%q", code, stderr)
+	}
+	got, err := os.ReadFile(argvFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotPath := string(bytes.TrimSpace(got))
+	if !filepath.IsAbs(gotPath) {
+		t.Fatalf("path %q is not absolute", gotPath)
+	}
+	if filepath.Base(gotPath) != "--version" {
+		t.Fatalf("path %q, want base --version", gotPath)
+	}
+}
+
 func TestCommandClean(t *testing.T) {
 	skipWindowsShell(t)
 	script := writeScript(t, t.TempDir(), "clean.sh", "exit 0")
