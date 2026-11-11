@@ -104,6 +104,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 
 	d, found, err := scanner.Scan(ctx, dir)
+	if err == nil {
+		err = ctx.Err()
+	}
 	clean := err == nil && !found
 	code := 0
 	switch {
