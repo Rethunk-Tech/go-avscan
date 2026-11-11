@@ -226,7 +226,7 @@ func TestClamdEmptyDirNeedsADaemon(t *testing.T) {
 		t.Fatalf("silent listener on empty dir: found=%v err=%v", found, err)
 	}
 	// Something that answers, but not as clamd, is not a daemon either.
-	for _, reply := range []string{"SSH-2.0-OpenSSH_9.9\r\n", "\x00", "x", "ClamAV 1.0.1"} {
+	for _, reply := range []string{"SSH-2.0-OpenSSH_9.9\r\n", "SSH-2.0-OpenSSH_9.9\x00", "\x00", "x", "ClamAV 1.0.1"} {
 		ln := listenTCP(t)
 		t.Cleanup(func() { _ = ln.Close() })
 		go func() {
