@@ -33,11 +33,14 @@ func ExampleClamd() {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	// Outcome depends on whether a clamd daemon is reachable on this machine.
-	_, _, _ = avscan.Clamd{}.Scan(ctx, dir)
+	d, found, err := avscan.Clamd{}.Scan(ctx, dir)
+	_ = d
+	_ = found
+	_ = err
 }
 
 func ExampleCommand() {
@@ -50,11 +53,14 @@ func ExampleAMSI() {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	// Outcome depends on whether this machine has an AMSI provider.
-	_, _, _ = avscan.AMSI{AppName: "example"}.Scan(ctx, dir)
+	d, found, err := avscan.AMSI{AppName: "example"}.Scan(ctx, dir)
+	_ = d
+	_ = found
+	_ = err
 }
 
 func ExampleSecurityCenterProducts() {
