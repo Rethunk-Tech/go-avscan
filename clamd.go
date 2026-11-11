@@ -212,7 +212,11 @@ func parseReply(r io.Reader) (string, error) {
 	switch {
 	case strings.HasSuffix(line, " FOUND"):
 		name := strings.TrimSuffix(line, " FOUND")
-		return cleanName(strings.TrimPrefix(name, "stream:")), nil
+		cleaned := cleanName(strings.TrimPrefix(name, "stream:"))
+		if cleaned == "" {
+			return "", errors.New("clamd reported a detection without a name")
+		}
+		return cleaned, nil
 	case strings.HasSuffix(line, "size limit exceeded. ERROR"):
 		return "", ErrTooLarge
 	case strings.HasSuffix(line, " OK"):
