@@ -50,7 +50,7 @@ Exit 0 is clean, 1 a detection, and 2 any error (usage, timeout, or a scan that 
 | --- | --- |
 | [HUMANS.md](HUMANS.md) | Running and using the package |
 | [AGENTS.md](AGENTS.md) | Internals, invariants, and why |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Process — commits, tests, docs |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Process: commits, tests, docs |
 | [SECURITY.md](SECURITY.md) | Vulnerability disclosure |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |
 
