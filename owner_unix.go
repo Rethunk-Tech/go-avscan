@@ -4,6 +4,7 @@ package avscan
 
 import (
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -30,13 +31,19 @@ func trustedUID(uid uint32) bool {
 	return uid < systemUIDLimit() && int64(uid) != int64(os.Geteuid())
 }
 
-// defaultUIDMin is the first ordinary user's uid when /etc/login.defs says nothing.
-const defaultUIDMin = 1000
+func uidMinFallback(goos string) uint32 {
+	// macOS has no login.defs and regular users start at 501, so the Linux 1000
+	// fallback would treat a neighbour's /tmp clamd as a system daemon.
+	if goos == "darwin" {
+		return 500
+	}
+	return 1000
+}
 
 func systemUIDLimit() uint32 {
 	data, err := os.ReadFile("/etc/login.defs")
 	if err != nil {
-		return defaultUIDMin
+		return uidMinFallback(runtime.GOOS)
 	}
 	for line := range strings.SplitSeq(string(data), "\n") {
 		f := strings.Fields(line)
@@ -46,5 +53,5 @@ func systemUIDLimit() uint32 {
 			}
 		}
 	}
-	return defaultUIDMin
+	return uidMinFallback(runtime.GOOS)
 }
