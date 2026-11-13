@@ -14,9 +14,9 @@ import (
 
 // Command runs a scanner program the caller names. Line is split on spaces and tabs with no shell; a double-quoted
 // part stays whole, and "{path}" in any part is replaced by the folder. Exit 0 is clean; any other exit code is a
-// detection whose name is the first non-empty line of the program's output ("" when it prints none). A program that
-// does not start is an error, an empty Line is [ErrNoScanner], and a Line without "{path}" is refused, since the
-// program would never be given the folder.
+// detection whose name is the first non-empty line of stdout ("" when stdout is empty). Stderr is not read. A program
+// that does not start is an error, one killed by a signal is an error, an empty Line is [ErrNoScanner], and a Line
+// without "{path}" is refused, since the program would never be given the folder.
 type Command struct{ Line string }
 
 // splitCommand splits a command line on spaces, keeping a double-quoted part whole.

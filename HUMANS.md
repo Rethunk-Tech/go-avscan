@@ -47,16 +47,16 @@ func main() {
 | `Detection.File` | Relative to `dir`, slash-separated on every OS; `""` when the scanner does not say which file |
 | `Detection.Name` | The scanner's threat name; `""` when it names none (AMSI never does, and a silent command does not) |
 | `Detection.Scanner` | `"clamd"`, `"AMSI"`, or the base name of the command's program |
-| `ErrNoScanner` | No AMSI provider, no reachable clamd, an empty command line, or AMSI off Windows. Test with `errors.Is` |
+| `ErrNoScanner` | No AMSI provider, no reachable clamd, an empty command line, or AMSI off Windows. Test with `errors.Is`. A clamd scan still needs a daemon when the folder has no regular files |
 | `ErrTooLarge` | clamd refused a file over its size limit; wrapped with the file's path. A later detection in the same folder still wins; with none, this is the error |
 | `Clamd.Socket` | Trusted as given. `""` tries the distribution's default sockets, skipping any not owned by root or the `clamav` user on Unix |
 | `Clamd.Dial` | Replaces `Socket` and the default list; the caller owns trusting what it dials. A dial error is `ErrNoScanner`, except a cancelled context, which returns the context's error |
 | `Clamd.ScanReader` | Streams one reader; `name` becomes `Detection.File`. `ErrTooLarge` and `ErrNoScanner` as for `Scan`, and the reader may be left partly read |
 | `Clamd.Version` | The daemon's version line; `ErrNoScanner` when none answers |
-| `Command` | No shell. Double quotes keep a part whole; `{path}` in any part becomes `dir`. Exit 0 is clean, any other exit code is a detection named by the first non-empty output line. A program that does not start is an error |
+| `Command` | No shell. Double quotes keep a part whole; `{path}` in any part becomes `dir`. Exit 0 is clean, any other exit code is a detection named by the first non-empty stdout line (stderr is not read). A program that does not start, or that is killed by a signal, is an error |
 | `AMSI` | `AppName` is registered with `AmsiInitialize`; `""` uses the executable's base name. A file Windows refuses as infected is a detection |
 | `SecurityCenterProducts` | Display names, one per product. An unreadable Security Center is an error and an empty one is `ErrNoScanner` |
-| Context | Cancellation or a deadline ends a blocked read, write or child process; a clamd connection also ends after a fixed time |
+| Context | Cancellation or a deadline ends a blocked read, write or child process; a clamd connection also has one deadline for the whole stream, not a fresh limit per read or write |
 
 ## Requirements
 
