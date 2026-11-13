@@ -226,7 +226,7 @@ func parseReply(r io.Reader) (string, error) {
 		return cleaned, nil
 	case strings.HasSuffix(line, "size limit exceeded. ERROR"):
 		return "", ErrTooLarge
-	case strings.HasSuffix(line, " OK"):
+	case line == "stream: OK":
 		if !terminated {
 			return "", err
 		}
