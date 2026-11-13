@@ -433,6 +433,16 @@ func TestParseReplyUnterminatedOKIsAnError(t *testing.T) {
 	}
 }
 
+func TestParseReplyOnlyTheExactOKIsClean(t *testing.T) {
+	t.Parallel()
+	for _, reply := range []string{"ERROR OK\x00", "OK\x00", "stream: Foo\nstream: OK\x00", "other: OK\x00"} {
+		name, err := parseReply(strings.NewReader(reply))
+		if name != "" || err == nil {
+			t.Fatalf("reply %q = %q, %v; want error", reply, name, err)
+		}
+	}
+}
+
 func TestParseReplyEmptyFoundNameIsAnError(t *testing.T) {
 	t.Parallel()
 	for _, reply := range []string{"stream: FOUND\x00", "stream: \x01\x02 FOUND\x00"} {

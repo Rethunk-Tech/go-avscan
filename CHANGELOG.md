@@ -29,6 +29,7 @@ Notable changes to `go-avscan`. The format follows
 - A file swapped for a directory or FIFO after the walk is an error, not a skipped (clean) path.
 - A clamd `FOUND` reply with no threat name is an error, not a clean scan.
 - An unterminated clamd `OK` reply is an error, not a clean scan.
+- A clamd reply reads clean only when it is exactly `stream: OK`; any other line ending in `OK` is an error.
 - A clamd scan whose write failed partway no longer counts an `OK` reply as clean: only a detection or the size-limit
   error overrides the write error, since clamd never saw the rest of the file.
 
