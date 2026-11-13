@@ -350,11 +350,12 @@ func TestCustomCommandExitCodeDecidesAndStdoutNames(t *testing.T) {
 
 func TestCommandKilledBySignalIsAnError(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("uses SIGSEGV")
+		t.Skip("uses POSIX signals")
 	}
 	t.Parallel()
 	dir := writeTree(t, map[string]string{"a.dll": "x"})
-	got, found, err := (Command{Line: `sh -c "kill -s SEGV $$" {path}`}).Scan(t.Context(), dir)
+	// SIGKILL is a signal death that writes no core dump, so abrt and systemd-coredump stay quiet.
+	got, found, err := (Command{Line: `sh -c "kill -s KILL $$" {path}`}).Scan(t.Context(), dir)
 	if found || err == nil {
 		t.Fatalf("signal death counted as detection: %+v found=%v err=%v", got, found, err)
 	}
