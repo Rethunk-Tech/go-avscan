@@ -56,12 +56,15 @@ func (c Clamd) candidates() []string {
 	return out
 }
 
-func (c Clamd) connect(ctx context.Context) (net.Conn, error) {
+func (c Clamd) connect(ctx context.Context, noScanner bool) (net.Conn, error) {
 	if c.Dial != nil {
 		conn, err := c.Dial(ctx)
 		if err != nil {
 			if cerr := ctx.Err(); cerr != nil {
 				return nil, cerr
+			}
+			if !noScanner {
+				return nil, err
 			}
 			return nil, fmt.Errorf("%w: %w", ErrNoScanner, err)
 		}
@@ -83,6 +86,9 @@ func (c Clamd) connect(ctx context.Context) (net.Conn, error) {
 	}
 	if cerr := ctx.Err(); cerr != nil {
 		return nil, cerr
+	}
+	if !noScanner {
+		return nil, errors.New("antivirus daemon unreachable")
 	}
 	return nil, ErrNoScanner
 }
@@ -135,14 +141,14 @@ func (c Clamd) scanFile(ctx context.Context, root *os.Root, rel string) (string,
 		return "", err
 	}
 	defer func() { _ = in.Close() }()
-	return c.scanStream(ctx, in)
+	return c.scanStream(ctx, in, false)
 }
 
 // ScanReader streams r to clamd and reports a detection, with name as [Detection.File]. r may be left partly read: on
 // [ErrTooLarge] clamd stopped taking it at its limit, so a caller that keeps the bytes needs an [io.Seeker] to rewind.
 // With no reachable daemon the error is [ErrNoScanner].
 func (c Clamd) ScanReader(ctx context.Context, name string, r io.Reader) (Detection, bool, error) {
-	threat, err := c.scanStream(ctx, r)
+	threat, err := c.scanStream(ctx, r, true)
 	if err != nil {
 		return Detection{}, false, err
 	}
@@ -152,8 +158,8 @@ func (c Clamd) ScanReader(ctx context.Context, name string, r io.Reader) (Detect
 	return Detection{Name: threat, File: name, Scanner: "clamd"}, true, nil
 }
 
-func (c Clamd) scanStream(ctx context.Context, in io.Reader) (string, error) {
-	conn, err := c.connect(ctx)
+func (c Clamd) scanStream(ctx context.Context, in io.Reader, noScanner bool) (string, error) {
+	conn, err := c.connect(ctx, noScanner)
 	if err != nil {
 		return "", err
 	}
@@ -231,7 +237,7 @@ func parseReply(r io.Reader) (string, error) {
 
 // Version asks clamd for its version line ("ClamAV 1.0.1/..."), reporting [ErrNoScanner] when no daemon answers.
 func (c Clamd) Version(ctx context.Context) (string, error) {
-	conn, err := c.connect(ctx)
+	conn, err := c.connect(ctx, true)
 	if err != nil {
 		return "", err
 	}
