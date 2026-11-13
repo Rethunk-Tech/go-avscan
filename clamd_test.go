@@ -19,7 +19,7 @@ func TestScanOmitsErrNoScannerAfterVersion(t *testing.T) {
 			}
 			a, b := net.Pipe()
 			go func() {
-				defer b.Close()
+				defer func() { _ = b.Close() }()
 				buf := make([]byte, 32)
 				_, _ = b.Read(buf)
 				_, _ = b.Write([]byte("ClamAV 1.4.0\x00"))
@@ -31,7 +31,7 @@ func TestScanOmitsErrNoScannerAfterVersion(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "f"), []byte("ok"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := c.Scan(context.Background(), dir)
+	_, _, err := c.Scan(t.Context(), dir)
 	if n < 2 {
 		t.Fatalf("Version did not succeed (dial count %d, err %v)", n, err)
 	}
